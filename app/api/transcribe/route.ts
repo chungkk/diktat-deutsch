@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import OpenAI from 'openai';
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session || (session.user as { role?: string })?.role !== 'admin') {
+      return NextResponse.json({ error: 'Nicht autorisiert' }, { status: 403 });
+    }
+
     const formData = await req.formData();
     const file = formData.get('file') as File;
 
@@ -38,8 +45,4 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
+export const maxDuration = 60;

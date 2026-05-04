@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 
 interface Lesson {
   _id: string;
+  slug?: string;
   title: string;
   description: string;
   level: string;
@@ -48,6 +49,7 @@ export default function HomePage() {
 
   const getProgress = (lessonId: string) => {
     return progress.find(p => {
+      if (!p.lessonId) return false;
       const id = typeof p.lessonId === 'object' ? p.lessonId._id : p.lessonId;
       return id === lessonId;
     });
@@ -78,7 +80,7 @@ export default function HomePage() {
             const pct = totalSubs > 0 ? Math.round((completed / totalSubs) * 100) : 0;
 
             return (
-              <Link key={lesson._id} href={`/lesson/${lesson._id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+              <Link key={lesson._id} href={`/lesson/${lesson.slug || lesson._id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
                 <div className="card">
                   <div className="lesson-card-header">
                     <span className="lesson-level">{lesson.level}</span>

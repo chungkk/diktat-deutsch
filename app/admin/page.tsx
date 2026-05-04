@@ -7,6 +7,7 @@ interface Subtitle { start: number; dur: number; text: string; }
 interface Lesson {
   _id: string; title: string; description: string; level: string;
   videoType: string; youtubeId?: string; videoUrl?: string;
+  thumbnail?: string; duration?: number;
   subtitles: Subtitle[]; isPublished: boolean; createdAt: string;
 }
 
@@ -30,6 +31,8 @@ export default function AdminPage() {
   const [subError, setSubError] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState('');
+  const [thumbnail, setThumbnail] = useState('');
+  const [duration, setDuration] = useState(0);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -49,8 +52,18 @@ export default function AdminPage() {
   };
 
   const extractYoutubeId = (url: string): string => {
-    const match = url.match(/(?:v=|\/)([\w-]{11})(?:\?|&|$)/);
-    return match ? match[1] : url;
+    const patterns = [
+      /(?:youtube\.com\/watch\?.*v=)([\w-]{11})/,
+      /(?:youtu\.be\/)([\w-]{11})/,
+      /(?:youtube\.com\/embed\/)([\w-]{11})/,
+      /(?:youtube\.com\/shorts\/)([\w-]{11})/,
+      /^([\w-]{11})$/,
+    ];
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) return match[1];
+    }
+    return url;
   };
 
   const fetchYoutubeSubs = async () => {
@@ -65,7 +78,16 @@ export default function AdminPage() {
       });
       const data = await res.json();
       if (data.error) { setSubError(data.error); }
-      else { setSubtitles(data.subtitles); }
+      else {
+        setSubtitles(data.subtitles);
+        // Auto-fill title & description from YouTube video metadata
+        if (data.videoTitle) {
+          if (!title) setTitle(data.videoTitle);
+          if (!description) setDescription(data.videoTitle);
+        }
+        if (data.videoThumbnail) setThumbnail(data.videoThumbnail);
+        if (data.videoDuration) setDuration(data.videoDuration);
+      }
     } catch { setSubError('Fehler beim Laden der Untertitel'); }
     setSubLoading(false);
   };
@@ -97,6 +119,7 @@ export default function AdminPage() {
     setTitle(''); setDescription(''); setLevel('A1'); setVideoType('youtube');
     setYoutubeUrl(''); setIsPublished(false); setSubtitles([]);
     setSubError(''); setUploadFile(null); setVideoUrl(''); setEditId(null);
+    setThumbnail(''); setDuration(0);
   };
 
   const openNew = () => { resetForm(); setShowModal(true); };
@@ -106,20 +129,28 @@ export default function AdminPage() {
     setLevel(lesson.level); setVideoType(lesson.videoType as 'youtube' | 'local');
     setYoutubeUrl(lesson.youtubeId || ''); setVideoUrl(lesson.videoUrl || '');
     setIsPublished(lesson.isPublished); setSubtitles(lesson.subtitles);
+    setThumbnail(lesson.thumbnail || ''); setDuration(lesson.duration || 0);
     setShowModal(true);
   };
 
   const handleSave = async () => {
     setSaving(true);
     const body = {
-      title, description, level, videoType, isPublished, subtitles,
+      title, description, level, videoType, isPublished, subtitles, thumbnail, duration,
       youtubeId: videoType === 'youtube' ? extractYoutubeId(youtubeUrl) : undefined,
       videoUrl: videoType === 'local' ? videoUrl : undefined,
     };
 
     const url = editId ? `/api/lessons/${editId}` : '/api/lessons';
     const method = editId ? 'PUT' : 'POST';
-    await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: 'Unbekannter Fehler' }));
+      setSubError(data.error || 'Speichern fehlgeschlagen');
+      setSaving(false);
+      return;
+    }
 
     setShowModal(false);
     resetForm();
@@ -248,6 +279,25 @@ export default function AdminPage() {
                     {subLoading ? 'Wird verarbeitet...' : 'Hochladen & Transkribieren'}
                   </button>
                 )}
+              </div>
+            )}
+
+            {/* Video thumbnail & duration preview */}
+            {thumbnail && (
+              <div className="form-group">
+                <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                  <img
+                    src={thumbnail}
+                    alt="Video Thumbnail"
+                    style={{ width: 200, borderRadius: 8, border: '1px solid var(--border)' }}
+                  />
+                  {duration > 0 && (
+                    <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                      <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Dauer</div>
+                      {Math.floor(duration / 60)}:{String(Math.floor(duration % 60)).padStart(2, '0')} Min.
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

@@ -34,7 +34,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     await dbConnect();
 
-    const lesson = await Lesson.create(body);
+    const { title, description, level, videoType, youtubeId, videoUrl, subtitles, isPublished, thumbnail, duration } = body;
+    const lesson = new Lesson({
+      title, description, level, videoType, youtubeId, videoUrl, subtitles, isPublished, thumbnail, duration,
+    });
+    await lesson.save();
     return NextResponse.json(lesson, { status: 201 });
   } catch (error: unknown) {
     console.error('Error creating lesson:', error);

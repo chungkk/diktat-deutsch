@@ -104,11 +104,9 @@ export default function LessonPage() {
   useEffect(() => {
     if (!lesson || lesson.videoType !== 'youtube') return;
 
-    const tag = document.createElement('script');
-    tag.src = 'https://www.youtube.com/iframe_api';
-    document.head.appendChild(tag);
-
-    (window as unknown as Record<string, unknown>).onYouTubeIframeAPIReady = () => {
+    const createPlayer = () => {
+      // Don't create if player already exists or DOM element is missing
+      if (playerRef.current || !document.getElementById('yt-player')) return;
       playerRef.current = new YT.Player('yt-player', {
         videoId: lesson.youtubeId,
         playerVars: { controls: 1, modestbranding: 1, rel: 0 },
@@ -120,13 +118,26 @@ export default function LessonPage() {
       });
     };
 
+    // If YT API is already loaded (client-side navigation), create player immediately
+    if (typeof YT !== 'undefined' && YT.Player) {
+      createPlayer();
+    } else {
+      // First load: inject the script and wait for callback
+      const existingScript = document.querySelector('script[src="https://www.youtube.com/iframe_api"]');
+      if (!existingScript) {
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        document.head.appendChild(tag);
+      }
+      (window as unknown as Record<string, unknown>).onYouTubeIframeAPIReady = createPlayer;
+    }
+
     return () => {
       delete (window as unknown as Record<string, unknown>).onYouTubeIframeAPIReady;
       if (playerRef.current) {
         playerRef.current.destroy();
         playerRef.current = null;
       }
-      tag.remove();
     };
   }, [lesson]);
 
@@ -221,10 +232,19 @@ export default function LessonPage() {
       }
       if (e.code === 'ArrowLeft' && !isInput) { e.preventDefault(); seekBy(-2); }
       if (e.code === 'ArrowRight' && !isInput) { e.preventDefault(); seekBy(2); }
+      if (e.code === 'ArrowUp') {
+        e.preventDefault();
+        if (currentIndex > 0) selectSubtitle(currentIndex - 1);
+      }
+      if (e.code === 'ArrowDown') {
+        e.preventDefault();
+        const total = lesson?.subtitles?.length || 0;
+        if (currentIndex < total - 1) selectSubtitle(currentIndex + 1);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlay, seekBy, seekToSubtitle, currentIndex, lesson?.videoType]);
+  }, [togglePlay, seekBy, seekToSubtitle, currentIndex, lesson]);
 
   // Scroll active subtitle to center of right panel
   useEffect(() => {
@@ -450,7 +470,8 @@ export default function LessonPage() {
             <kbd>Space</kbd> Play/Pause
             <kbd>←</kbd> -2s
             <kbd>→</kbd> +2s
-            <kbd>Enter</kbd> Nächstes Feld / Prüfen
+            <kbd>↑</kbd> Vorheriger Satz
+            <kbd>↓</kbd> Nächster Satz
             <kbd>Tab</kbd> Zwischen Feldern
           </div>
         </div>

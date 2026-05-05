@@ -57,7 +57,8 @@ export default function LessonPage() {
   const [totalAttempts, setTotalAttempts] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [blankMode, setBlankMode] = useState<50 | 100>(50);
+  const [blankMode, setBlankMode] = useState<50 | 100>(100);
+  const [peekingIndex, setPeekingIndex] = useState<number | null>(null);
 
   const playerRef = useRef<YT.Player | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -206,20 +207,35 @@ export default function LessonPage() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-      // Space always toggles play/pause (even in input fields — blanks are single words)
-      if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+      // Space: if playing → pause, if paused → replay current subtitle from start
+      if (e.code === 'Space') {
+        e.preventDefault();
+        const isCurrentlyPlaying = lesson?.videoType === 'youtube'
+          ? playerRef.current?.getPlayerState() === YT.PlayerState.PLAYING
+          : videoRef.current ? !videoRef.current.paused : false;
+        if (isCurrentlyPlaying) {
+          togglePlay(); // pause
+        } else {
+          seekToSubtitle(currentIndex); // replay current sub from start
+        }
+      }
       if (e.code === 'ArrowLeft' && !isInput) { e.preventDefault(); seekBy(-2); }
       if (e.code === 'ArrowRight' && !isInput) { e.preventDefault(); seekBy(2); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlay, seekBy]);
+  }, [togglePlay, seekBy, seekToSubtitle, currentIndex, lesson?.videoType]);
 
-  // Scroll active subtitle into view
+  // Scroll active subtitle to center of right panel
   useEffect(() => {
     const el = document.getElementById(`sub-${currentIndex}`);
-    if (el && subtitleListRef.current) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const container = subtitleListRef.current;
+    if (el && container) {
+      const elTop = el.offsetTop;
+      const elHeight = el.offsetHeight;
+      const containerHeight = container.clientHeight;
+      const scrollTo = elTop - (containerHeight / 2) + (elHeight / 2);
+      container.scrollTo({ top: scrollTo, behavior: 'smooth' });
     }
   }, [currentIndex]);
 
@@ -354,17 +370,9 @@ export default function LessonPage() {
     }
   };
 
-  // Reveal all blanks for a subtitle
-  const revealBlanks = (subIdx: number) => {
-    if (!subTokens[subIdx]) return;
-    const { words, blanks } = subTokens[subIdx];
-    const filled: Record<number, string> = {};
-    blanks.forEach(wi => { filled[wi] = words[wi]; });
-    setBlankInputs(prev => ({ ...prev, [subIdx]: { ...(prev[subIdx] || {}), ...filled } }));
-    const results: Record<number, 'correct' | 'incorrect'> = {};
-    blanks.forEach(wi => { results[wi] = 'correct'; });
-    setBlankResults(prev => ({ ...prev, [subIdx]: results }));
-  };
+  // Peek: show answer while holding, hide on release
+  const startPeek = (subIdx: number) => setPeekingIndex(subIdx);
+  const stopPeek = () => setPeekingIndex(null);
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -459,6 +467,7 @@ export default function LessonPage() {
           const subResults = blankResults[i] || {};
           const subInputs = blankInputs[i] || {};
           const allBlanksCorrect = blanks.size > 0 && Array.from(blanks).every(wi => subResults[wi] === 'correct');
+          const isPeeking = peekingIndex === i;
 
           return (
             <div
@@ -480,9 +489,13 @@ export default function LessonPage() {
                 {isCompleted && <span className="sub-check">✓</span>}
                 {isActive && !isCompleted && (
                   <button
-                    className="sub-action-btn sub-action-hint"
-                    onClick={(e) => { e.stopPropagation(); revealBlanks(i); }}
-                    title="Lösung zeigen"
+                    className={`sub-action-btn sub-action-hint ${peekingIndex === i ? 'sub-action-peeking' : ''}`}
+                    onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); startPeek(i); }}
+                    onMouseUp={stopPeek}
+                    onMouseLeave={stopPeek}
+                    onTouchStart={(e) => { e.stopPropagation(); startPeek(i); }}
+                    onTouchEnd={stopPeek}
+                    title="Gedrückt halten für Lösung"
                   >
                     👁
                   </button>
@@ -495,31 +508,70 @@ export default function LessonPage() {
                   const isBlank = blanks.has(wi);
                   const result = subResults[wi];
                   const userVal = subInputs[wi] || '';
+                  const cleanWord = word.replace(/[.,!?;:'"„"»«]/g, '');
+                  const punct = word.slice(cleanWord.length);
 
-                  if (!isBlank || isCompleted || allBlanksCorrect) {
-                    // Show as normal word
+                  // Completed or peeking — show all words revealed
+                  if (isCompleted || allBlanksCorrect || isPeeking) {
+                    return <span key={wi} className={`cloze-word ${isPeeking ? 'cloze-peek' : 'cloze-correct'}`}>{word}{' '}</span>;
+                  }
+
+                  // Non-blank — show as masked underscores
+                  if (!isBlank) {
                     return (
-                      <span key={wi} className={`cloze-word ${result === 'correct' ? 'cloze-correct' : ''}`}>
-                        {isCompleted || allBlanksCorrect ? word : word}{' '}
+                      <span key={wi} className="cloze-word cloze-masked">
+                        {cleanWord.replace(/./g, '_')}{punct}{' '}
                       </span>
                     );
                   }
 
-                  // Show as blank input
+                  // Blank but NOT active row — just show simple placeholder (performance!)
+                  if (!isActive) {
+                    if (result === 'correct') {
+                      return <span key={wi} className="cloze-word cloze-correct">{word}{' '}</span>;
+                    }
+                    return (
+                      <span key={wi} className="cloze-word cloze-masked">
+                        {cleanWord.replace(/./g, '_')}{punct}{' '}
+                      </span>
+                    );
+                  }
+
+                  // Active row blank — if already correct, show as revealed text
+                  if (result === 'correct') {
+                    return <span key={wi} className="cloze-word cloze-correct">{word}{' '}</span>;
+                  }
+
+                  // Active row blank — full character cells with hidden input
+                  const chars = cleanWord.split('');
                   return (
-                    <span key={wi} className="cloze-blank-wrap">
+                    <span
+                      key={wi}
+                      className="cloze-chars-wrap"
+                      onClick={(e) => { e.stopPropagation(); blankRefs.current[`${i}-${wi}`]?.focus(); }}
+                    >
                       <input
                         ref={el => { blankRefs.current[`${i}-${wi}`] = el; }}
                         type="text"
-                        className={`cloze-blank ${result === 'correct' ? 'cloze-blank-correct' : result === 'incorrect' ? 'cloze-blank-incorrect' : ''}`}
-                        style={{ width: `${Math.max(word.length * 0.65, 2)}em` }}
+                        className="cloze-hidden-input"
                         value={userVal}
                         onChange={e => handleBlankChange(i, wi, e.target.value)}
                         onKeyDown={e => handleBlankKeyDown(e, i, wi)}
-                        onClick={e => e.stopPropagation()}
-                        placeholder="···"
-                        autoFocus={isActive && wi === Array.from(blanks).sort((a, b) => a - b)[0]}
-                      />{' '}
+                        autoFocus={wi === Array.from(blanks).sort((a, b) => a - b)[0]}
+                        maxLength={cleanWord.length}
+                      />
+                      {chars.map((ch, ci) => {
+                        const typed = userVal[ci];
+                        let cls = 'cloze-char';
+                        if (typed) {
+                          cls += typed.toLowerCase() === ch.toLowerCase() ? ' cloze-char-correct' : ' cloze-char-incorrect';
+                        } else {
+                          cls += ' cloze-char-empty';
+                        }
+                        return <span key={ci} className={cls}>{typed || '_'}</span>;
+                      })}
+                      {punct && <span className="cloze-punct">{punct}</span>}
+                      {' '}
                     </span>
                   );
                 })}

@@ -85,7 +85,7 @@ const LessonSchema: Schema = new Schema({
 });
 
 // Auto-generate slug from title before saving
-LessonSchema.pre('save', async function (next) {
+LessonSchema.pre('save', async function () {
   if (this.isModified('title') || !this.slug) {
     let base = generateSlug(this.title as string);
     let slug = base;
@@ -96,7 +96,6 @@ LessonSchema.pre('save', async function (next) {
     }
     this.slug = slug;
   }
-  next();
 });
 
 export default mongoose.models.Lesson || mongoose.model<ILesson>('Lesson', LessonSchema);

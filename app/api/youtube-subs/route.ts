@@ -6,22 +6,105 @@ import { readFile, unlink, mkdtemp } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
+interface Json3Segment {
+  utf8: string;
+  tOffsetMs?: number;
+}
+
 interface Json3Event {
   tStartMs?: number;
   dDurationMs?: number;
-  segs?: { utf8: string }[];
+  segs?: Json3Segment[];
 }
 
 function parseJson3(raw: string): { start: number; dur: number; text: string }[] {
   const data = JSON.parse(raw);
-  return (data.events || [])
-    .filter((e: Json3Event) => e.segs)
-    .map((e: Json3Event) => ({
-      start: (e.tStartMs || 0) / 1000,
-      dur: (e.dDurationMs || 0) / 1000,
-      text: (e.segs || []).map(s => s.utf8).join('').trim(),
-    }))
-    .filter((s: { text: string }) => s.text);
+
+  // Step 1: extract all events that have segments, compute accurate dur
+  const rawSubs: { start: number; dur: number; text: string }[] = [];
+
+  for (const e of (data.events || []) as Json3Event[]) {
+    if (!e.segs) continue;
+
+    const text = e.segs.map(s => s.utf8).join('').trim()
+      // Remove bracketed annotations like [Musik], [Music], [Applaus], etc.
+      .replace(/\[.*?\]/g, '').trim();
+    if (!text) continue;
+
+    const startMs = e.tStartMs || 0;
+    const origDurMs = e.dDurationMs || 0;
+
+    // Use word-level tOffsetMs to compute actual spoken duration.
+    // Auto-generated subs inflate dDurationMs to cover the next line too.
+    // The last segment's tOffsetMs tells when the last word STARTS speaking.
+    // Add ~500ms for the final word's length to get true end time.
+    let lastOffsetMs = 0;
+    for (const seg of e.segs) {
+      if (seg.tOffsetMs && seg.tOffsetMs > lastOffsetMs) {
+        lastOffsetMs = seg.tOffsetMs;
+      }
+    }
+
+    // If we have word-level offsets, use them; otherwise fall back to original dur
+    const durMs = lastOffsetMs > 0
+      ? Math.min(lastOffsetMs + 500, origDurMs)
+      : origDurMs;
+
+    rawSubs.push({
+      start: startMs / 1000,
+      dur: durMs / 1000,
+      text,
+    });
+  }
+
+  // Step 2: cap duration so it never exceeds the next subtitle's start time
+  for (let i = 0; i < rawSubs.length - 1; i++) {
+    const gap = rawSubs[i + 1].start - rawSubs[i].start;
+    if (gap > 0 && gap < rawSubs[i].dur) {
+      rawSubs[i].dur = gap;
+    }
+  }
+
+  // Step 3: merge short fragments into natural sentences.
+  // Auto-generated subs split text into ~2s display chunks. We merge them
+  // back into complete sentences for a better dictation experience.
+  const MAX_MERGED_DUR = 15; // seconds — cap to keep sentences manageable
+  const merged: { start: number; dur: number; text: string }[] = [];
+  let bufStart = 0;
+  let bufEnd = 0;
+  let bufText = '';
+
+  const flush = () => {
+    if (bufText) {
+      merged.push({ start: bufStart, dur: bufEnd - bufStart, text: bufText });
+      bufText = '';
+    }
+  };
+
+  for (const s of rawSubs) {
+    const sEnd = s.start + s.dur;
+    const gap = bufText ? s.start - bufEnd : 0;
+
+    if (bufText) {
+      const endsSentence = /[.!?]$/.test(bufText.trimEnd());
+      const wouldBeDur = sEnd - bufStart;
+      // Flush if: large gap, sentence ends with pause, or would exceed max duration
+      if (gap > 2.0 || (endsSentence && gap > 0.3) || wouldBeDur > MAX_MERGED_DUR) {
+        flush();
+      }
+    }
+
+    if (!bufText) {
+      bufStart = s.start;
+      bufText = s.text;
+    } else {
+      bufText += ' ' + s.text;
+    }
+    bufEnd = sEnd;
+  }
+  flush();
+
+  return merged;
 }
 
 function runYtDlp(args: string[]): Promise<{ stdout: string; stderr: string }> {

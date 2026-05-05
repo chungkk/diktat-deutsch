@@ -14,9 +14,22 @@ export default function Navbar() {
           {session ? (
             <>
               <Link href="/">Lektionen</Link>
-              {role === 'admin' && <Link href="/admin">Verwaltung</Link>}
-              <span className="navbar-user">{session.user?.name}</span>
-              <button onClick={() => signOut()}>Abmelden</button>
+              <div className="navbar-dropdown">
+                <span className="navbar-user">{session.user?.name}</span>
+                <div className="navbar-dropdown-menu">
+                  {role === 'admin' && (
+                    <Link href="/admin" className="navbar-dropdown-item">
+                      ⚙️ Verwaltung
+                    </Link>
+                  )}
+                  <button
+                    className="navbar-dropdown-item"
+                    onClick={() => signOut()}
+                  >
+                    🚪 Abmelden
+                  </button>
+                </div>
+              </div>
             </>
           ) : (
             <>

@@ -113,7 +113,11 @@ export default function HomePage() {
         fetch('/api/lessons').then(r => r.json()),
         fetch('/api/progress').then(r => r.json()),
       ]).then(([lessonsData, progressData]) => {
-        setLessons(lessonsData);
+        // Sort oldest first so learners progress sequentially
+        const sorted = (lessonsData as Lesson[]).sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+        setLessons(sorted);
         setProgress(Array.isArray(progressData) ? progressData : []);
         setLoading(false);
       });
@@ -133,6 +137,24 @@ export default function HomePage() {
   }
 
   const totalLessons = lessons.length;
+
+  // Compute completion % for each lesson to determine unlock state
+  const getLessonPct = (lessonId: string, subtitleCount: number) => {
+    const prog = getProgress(lessonId);
+    const completed = prog?.completedIndices?.length || 0;
+    return subtitleCount > 0 ? Math.round((completed / subtitleCount) * 100) : 0;
+  };
+
+  // Progressive unlock: lesson[i] is unlocked if i===0 or lesson[i-1] >= 90%
+  const unlockedCount = (() => {
+    let count = 1; // first lesson always unlocked
+    for (let i = 0; i < lessons.length - 1; i++) {
+      const pct = getLessonPct(lessons[i]._id, lessons[i].subtitles?.length || 0);
+      if (pct >= 90) count++;
+      else break;
+    }
+    return count;
+  })();
 
   const getThumbnail = (lesson: Lesson) => {
     if (lesson.thumbnail) return lesson.thumbnail;
@@ -157,80 +179,88 @@ export default function HomePage() {
           <>
             <div className="home-section-header">
               <h2 className="home-section-title">Alle Lektionen</h2>
-              <span className="home-section-count">{totalLessons} verfügbar</span>
+              <span className="home-section-count">{unlockedCount}/{totalLessons} freigeschaltet</span>
             </div>
             <div className="home-grid">
-              {lessons.map(lesson => {
+              {lessons.map((lesson, idx) => {
                 const prog = getProgress(lesson._id);
                 const totalSubs = lesson.subtitles?.length || 0;
                 const completed = prog?.completedIndices?.length || 0;
                 const pct = totalSubs > 0 ? Math.round((completed / totalSubs) * 100) : 0;
                 const thumb = getThumbnail(lesson);
                 const levelColor = LEVEL_COLORS[lesson.level] || 'var(--accent)';
+                const isLocked = idx >= unlockedCount;
 
-                return (
-                  <Link
-                    key={lesson._id}
-                    href={`/lesson/${lesson.slug || lesson._id}`}
-                    className="home-card-link"
-                  >
-                    <article className="home-card">
-                      {/* Thumbnail */}
-                      <div className="home-card-thumb">
-                        {thumb ? (
-                          <img src={thumb} alt={lesson.title} loading="lazy" />
-                        ) : (
-                          <div className="home-card-thumb-placeholder">
-                            <span>🎬</span>
-                          </div>
-                        )}
-                        <div className="home-card-thumb-overlay" />
+                const cardContent = (
+                  <article className={`home-card ${isLocked ? 'home-card-locked' : ''}`}>
+                    {/* Thumbnail */}
+                    <div className="home-card-thumb">
+                      {thumb ? (
+                        <img src={thumb} alt={lesson.title} loading="lazy" />
+                      ) : (
+                        <div className="home-card-thumb-placeholder">
+                          <span>🎬</span>
+                        </div>
+                      )}
+                      <div className="home-card-thumb-overlay" />
 
-                        {/* Duration badge */}
-                        {lesson.duration && lesson.duration > 0 && (
-                          <span className="home-card-duration">
-                            {formatDuration(lesson.duration)}
-                          </span>
-                        )}
-
-                        {/* Level badge */}
-                        <span
-                          className="home-card-level"
-                          style={{
-                            background: levelColor,
-                            boxShadow: `0 2px 12px ${levelColor}44`,
-                          }}
-                        >
-                          {lesson.level}
+                      {/* Duration badge */}
+                      {!isLocked && lesson.duration && lesson.duration > 0 && (
+                        <span className="home-card-duration">
+                          {formatDuration(lesson.duration)}
                         </span>
+                      )}
 
-                        {/* Completed overlay */}
-                        {prog?.isCompleted && (
-                          <div className="home-card-completed-badge">
-                            <span>✓</span>
-                          </div>
-                        )}
+                      {/* Level badge */}
+                      <span
+                        className="home-card-level"
+                        style={{
+                          background: isLocked ? '#555' : levelColor,
+                          boxShadow: isLocked ? 'none' : `0 2px 12px ${levelColor}44`,
+                        }}
+                      >
+                        {lesson.level}
+                      </span>
+
+                      {/* Lock overlay */}
+                      {isLocked && (
+                        <div className="home-card-lock-overlay">
+                          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                          </svg>
+                          <span>Lektion {idx} abschließen</span>
+                        </div>
+                      )}
+
+                      {/* Completed overlay */}
+                      {!isLocked && prog?.isCompleted && (
+                        <div className="home-card-completed-badge">
+                          <span>✓</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Content */}
+                    <div className="home-card-body">
+                      <h3 className="home-card-title">{lesson.title}</h3>
+
+                      <div className="home-card-meta">
+                        <span className="home-card-meta-item">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                          {totalSubs} Sätze
+                        </span>
+                        <span className="home-card-meta-item">
+                          {lesson.videoType === 'youtube' ? (
+                            <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zM9 16V8l8 4-8 4z"/></svg> YouTube</>
+                          ) : (
+                            <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg> Lokal</>
+                          )}
+                        </span>
                       </div>
 
-                      {/* Content */}
-                      <div className="home-card-body">
-                        <h3 className="home-card-title">{lesson.title}</h3>
-
-                        <div className="home-card-meta">
-                          <span className="home-card-meta-item">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                            {totalSubs} Sätze
-                          </span>
-                          <span className="home-card-meta-item">
-                            {lesson.videoType === 'youtube' ? (
-                              <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zM9 16V8l8 4-8 4z"/></svg> YouTube</>
-                            ) : (
-                              <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg> Lokal</>
-                            )}
-                          </span>
-                        </div>
-
-                        {/* Progress section */}
+                      {/* Progress section */}
+                      {!isLocked && (
                         <div className="home-card-footer">
                           <div className="home-card-progress-info">
                             <div className="home-card-progress-bar">
@@ -246,10 +276,24 @@ export default function HomePage() {
                               {completed}/{totalSubs}
                             </span>
                           </div>
-                          <ProgressRing pct={pct} />
+                          <ProgressRing pct={pct} size={36} stroke={3} />
                         </div>
-                      </div>
-                    </article>
+                      )}
+                    </div>
+                  </article>
+                );
+
+                if (isLocked) {
+                  return <div key={lesson._id} className="home-card-link home-card-link-locked">{cardContent}</div>;
+                }
+
+                return (
+                  <Link
+                    key={lesson._id}
+                    href={`/lesson/${lesson.slug || lesson._id}`}
+                    className="home-card-link"
+                  >
+                    {cardContent}
                   </Link>
                 );
               })}

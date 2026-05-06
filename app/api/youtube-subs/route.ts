@@ -65,46 +65,7 @@ function parseJson3(raw: string): { start: number; dur: number; text: string }[]
     }
   }
 
-  // Step 3: merge short fragments into natural sentences.
-  // Auto-generated subs split text into ~2s display chunks. We merge them
-  // back into complete sentences for a better dictation experience.
-  const MAX_MERGED_DUR = 15; // seconds — cap to keep sentences manageable
-  const merged: { start: number; dur: number; text: string }[] = [];
-  let bufStart = 0;
-  let bufEnd = 0;
-  let bufText = '';
-
-  const flush = () => {
-    if (bufText) {
-      merged.push({ start: bufStart, dur: bufEnd - bufStart, text: bufText });
-      bufText = '';
-    }
-  };
-
-  for (const s of rawSubs) {
-    const sEnd = s.start + s.dur;
-    const gap = bufText ? s.start - bufEnd : 0;
-
-    if (bufText) {
-      const endsSentence = /[.!?]$/.test(bufText.trimEnd());
-      const wouldBeDur = sEnd - bufStart;
-      // Flush if: large gap, sentence ends with pause, or would exceed max duration
-      if (gap > 2.0 || (endsSentence && gap > 0.3) || wouldBeDur > MAX_MERGED_DUR) {
-        flush();
-      }
-    }
-
-    if (!bufText) {
-      bufStart = s.start;
-      bufText = s.text;
-    } else {
-      bufText += ' ' + s.text;
-    }
-    bufEnd = sEnd;
-  }
-  flush();
-
-  return merged;
+  return rawSubs;
 }
 
 function runYtDlp(args: string[]): Promise<{ stdout: string; stderr: string }> {

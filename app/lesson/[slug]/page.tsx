@@ -59,6 +59,7 @@ export default function LessonPage() {
   const [loading, setLoading] = useState(true);
   const [blankMode, setBlankMode] = useState<50 | 100>(100);
   const [peekingIndex, setPeekingIndex] = useState<number | null>(null);
+  const [blurAll, setBlurAll] = useState(false);
 
   const playerRef = useRef<YT.Player | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -394,6 +395,8 @@ export default function LessonPage() {
   const startPeek = (subIdx: number) => setPeekingIndex(subIdx);
   const stopPeek = () => setPeekingIndex(null);
 
+
+
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
@@ -466,6 +469,15 @@ export default function LessonPage() {
             </div>
           </div>
 
+          {/* Shadowing blur toggle */}
+          <button
+            className={`shadowing-toggle ${blurAll ? 'shadowing-toggle-active' : ''}`}
+            onClick={() => setBlurAll(prev => !prev)}
+          >
+            <span className="shadowing-toggle-icon">{blurAll ? '👁' : '👤'}</span>
+            <span>{blurAll ? 'Text anzeigen' : 'Shadowing'}</span>
+          </button>
+
           <div className="lesson-shortcuts">
             <kbd>Space</kbd> Play/Pause
             <kbd>←</kbd> -2s
@@ -524,7 +536,7 @@ export default function LessonPage() {
               </div>
 
               {/* Fill-in-the-blank sentence */}
-              <div className="sub-cloze">
+              <div className={`sub-cloze ${blurAll && isCompleted ? 'sub-cloze-blurred' : ''}`}>
                 {words.map((word, wi) => {
                   const isBlank = blanks.has(wi);
                   const result = subResults[wi];

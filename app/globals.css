@@ -681,12 +681,68 @@ a:hover {
   transition: opacity 0.15s;
 }
 
+/* Shadowing toggle button */
+.shadowing-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.shadowing-toggle:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+  background: rgba(108, 92, 231, 0.08);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.shadowing-toggle-active {
+  border-color: var(--accent);
+  background: rgba(108, 92, 231, 0.15);
+  color: var(--accent);
+  box-shadow: 0 0 16px var(--accent-glow);
+}
+
+.shadowing-toggle-icon {
+  font-size: 1.1rem;
+  transition: transform 0.3s ease;
+}
+
+.shadowing-toggle:hover .shadowing-toggle-icon {
+  transform: scale(1.15);
+}
+
 /* Cloze (fill-in-the-blank) sentence */
 .sub-cloze {
   padding: 8px 0 4px 38px;
   line-height: 2.2;
   font-size: 0.95rem;
   font-weight: 500;
+  transition: filter 0.35s ease;
+}
+
+/* Shadowing blur effect */
+.sub-cloze-blurred {
+  filter: blur(5px);
+  user-select: none;
+  cursor: pointer;
+  transition: filter 0.35s ease;
+}
+
+.sub-cloze-blurred:hover {
+  filter: blur(3px);
 }
 
 .cloze-word {

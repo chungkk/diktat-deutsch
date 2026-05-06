@@ -6,7 +6,7 @@
   --bg-card: #1a1a2e;
   --bg-input: #16162a;
   --border: #2a2a4a;
-  --text-primary: #e8e8f0;
+  --text-primary: #ffffff;
   --text-secondary: #8888aa;
   --text-muted: #5555777;
   --accent: #6c5ce7;
@@ -686,11 +686,13 @@ a:hover {
   padding: 8px 0 4px 38px;
   line-height: 2.2;
   font-size: 0.95rem;
+  font-weight: 500;
 }
 
 .cloze-word {
   display: inline;
   transition: color 0.3s;
+  font-weight: 500;
 }
 
 .cloze-correct {

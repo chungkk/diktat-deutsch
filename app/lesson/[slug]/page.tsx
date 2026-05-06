@@ -110,7 +110,12 @@ export default function LessonPage() {
       if (playerRef.current || !document.getElementById('yt-player')) return;
       playerRef.current = new YT.Player('yt-player', {
         videoId: lesson.youtubeId,
-        playerVars: { controls: 1, modestbranding: 1, rel: 0 },
+        playerVars: {
+          controls: 1,
+          modestbranding: 1,
+          rel: 0,
+          origin: typeof window !== 'undefined' ? window.location.origin : undefined,
+        },
         events: {
           onStateChange: (e: YT.OnStateChangeEvent) => {
             setIsPlaying(e.data === YT.PlayerState.PLAYING);

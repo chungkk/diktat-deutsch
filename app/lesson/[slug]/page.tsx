@@ -61,7 +61,6 @@ export default function LessonPage() {
   const [peekingIndex, setPeekingIndex] = useState<number | null>(null);
   const [blurAll, setBlurAll] = useState(false);
 
-  const playerRef = useRef<YT.Player | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const blankRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const subtitleListRef = useRef<HTMLDivElement | null>(null);
@@ -101,51 +100,56 @@ export default function LessonPage() {
     });
   }, [slug, status, router]);
 
-  // YouTube IFrame API
+  // YouTube iframe postMessage API
+  const ytIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const ytStateRef = useRef<number>(-1); // -1 = unstarted, 1 = playing, 2 = paused
+
   useEffect(() => {
     if (!lesson || lesson.videoType !== 'youtube') return;
 
-    const createPlayer = () => {
-      // Don't create if player already exists or DOM element is missing
-      if (playerRef.current || !document.getElementById('yt-player')) return;
-      playerRef.current = new YT.Player('yt-player', {
-        videoId: lesson.youtubeId,
-        playerVars: {
-          controls: 1,
-          modestbranding: 1,
-          rel: 0,
-          origin: typeof window !== 'undefined' ? window.location.origin : undefined,
-        },
-        events: {
-          onStateChange: (e: YT.OnStateChangeEvent) => {
-            setIsPlaying(e.data === YT.PlayerState.PLAYING);
-          },
-        },
-      });
+    const handleMessage = (e: MessageEvent) => {
+      if (e.origin !== 'https://www.youtube.com') return;
+      try {
+        const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        if (data.event === 'onStateChange' || data.info?.playerState !== undefined) {
+          const state = data.info?.playerState ?? data.info;
+          ytStateRef.current = state;
+          setIsPlaying(state === 1);
+        }
+        if (data.event === 'initialDelivery' || data.event === 'infoDelivery') {
+          if (data.info?.currentTime !== undefined) {
+            ytTimeRef.current = data.info.currentTime;
+          }
+          if (data.info?.playerState !== undefined) {
+            ytStateRef.current = data.info.playerState;
+            setIsPlaying(data.info.playerState === 1);
+          }
+        }
+      } catch { /* ignore non-JSON messages */ }
     };
 
-    // If YT API is already loaded (client-side navigation), create player immediately
-    if (typeof YT !== 'undefined' && YT.Player) {
-      createPlayer();
-    } else {
-      // First load: inject the script and wait for callback
-      const existingScript = document.querySelector('script[src="https://www.youtube.com/iframe_api"]');
-      if (!existingScript) {
-        const tag = document.createElement('script');
-        tag.src = 'https://www.youtube.com/iframe_api';
-        document.head.appendChild(tag);
-      }
-      (window as unknown as Record<string, unknown>).onYouTubeIframeAPIReady = createPlayer;
-    }
-
-    return () => {
-      delete (window as unknown as Record<string, unknown>).onYouTubeIframeAPIReady;
-      if (playerRef.current) {
-        playerRef.current.destroy();
-        playerRef.current = null;
-      }
-    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }, [lesson]);
+
+  const ytTimeRef = useRef<number>(0);
+
+  const ytCommand = useCallback((func: string, args?: unknown[]) => {
+    if (!ytIframeRef.current?.contentWindow) return;
+    ytIframeRef.current.contentWindow.postMessage(
+      JSON.stringify({ event: 'command', func, args: args || [] }),
+      'https://www.youtube.com'
+    );
+  }, []);
+
+  // Listen for time updates
+  useEffect(() => {
+    if (!lesson || lesson.videoType !== 'youtube') return;
+    const interval = setInterval(() => {
+      ytCommand('getCurrentTime');
+    }, 200);
+    return () => clearInterval(interval);
+  }, [lesson, ytCommand]);
 
   // Save progress
   const saveProgress = useCallback(async (idx: number, completed: number[], sc: number, attempts: number) => {
@@ -177,12 +181,12 @@ export default function LessonPage() {
 
     const endTime = sub.start + sub.dur + 0.3;
 
-    if (lesson.videoType === 'youtube' && playerRef.current) {
-      playerRef.current.seekTo(sub.start, true);
-      playerRef.current.playVideo();
+    if (lesson.videoType === 'youtube') {
+      ytCommand('seekTo', [sub.start, true]);
+      ytCommand('playVideo');
       autoPauseTimer.current = setInterval(() => {
-        if (playerRef.current && playerRef.current.getCurrentTime() >= endTime) {
-          playerRef.current.pauseVideo();
+        if (ytTimeRef.current >= endTime) {
+          ytCommand('pauseVideo');
           if (autoPauseTimer.current) { clearInterval(autoPauseTimer.current); autoPauseTimer.current = null; }
         }
       }, 100);
@@ -196,28 +200,26 @@ export default function LessonPage() {
         }
       }, 100);
     }
-  }, [lesson]);
+  }, [lesson, ytCommand]);
 
   const togglePlay = useCallback(() => {
     if (autoPauseTimer.current) { clearInterval(autoPauseTimer.current); autoPauseTimer.current = null; }
-    if (lesson?.videoType === 'youtube' && playerRef.current) {
-      const state = playerRef.current.getPlayerState();
-      if (state === YT.PlayerState.PLAYING) playerRef.current.pauseVideo();
-      else playerRef.current.playVideo();
+    if (lesson?.videoType === 'youtube') {
+      if (ytStateRef.current === 1) ytCommand('pauseVideo');
+      else ytCommand('playVideo');
     } else if (videoRef.current) {
       if (videoRef.current.paused) videoRef.current.play();
       else videoRef.current.pause();
     }
-  }, [lesson?.videoType]);
+  }, [lesson?.videoType, ytCommand]);
 
   const seekBy = useCallback((seconds: number) => {
-    if (lesson?.videoType === 'youtube' && playerRef.current) {
-      const current = playerRef.current.getCurrentTime();
-      playerRef.current.seekTo(current + seconds, true);
+    if (lesson?.videoType === 'youtube') {
+      ytCommand('seekTo', [ytTimeRef.current + seconds, true]);
     } else if (videoRef.current) {
       videoRef.current.currentTime += seconds;
     }
-  }, [lesson?.videoType]);
+  }, [lesson?.videoType, ytCommand]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -228,7 +230,7 @@ export default function LessonPage() {
       if (e.code === 'Space') {
         e.preventDefault();
         const isCurrentlyPlaying = lesson?.videoType === 'youtube'
-          ? playerRef.current?.getPlayerState() === YT.PlayerState.PLAYING
+          ? ytStateRef.current === 1
           : videoRef.current ? !videoRef.current.paused : false;
         if (isCurrentlyPlaying) {
           togglePlay(); // pause
@@ -426,7 +428,13 @@ export default function LessonPage() {
         <div className="lesson-left-sticky">
           <div className="video-wrapper">
             {lesson.videoType === 'youtube' ? (
-              <div id="yt-player" />
+              <iframe
+                ref={ytIframeRef}
+                src={`https://www.youtube.com/embed/${lesson.youtubeId}?enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}&controls=1&modestbranding=1&rel=0`}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title={lesson.title}
+              />
             ) : (
               <video
                 ref={videoRef}

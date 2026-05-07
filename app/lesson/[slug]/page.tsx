@@ -59,7 +59,8 @@ export default function LessonPage() {
   const [loading, setLoading] = useState(true);
   const [blankMode, setBlankMode] = useState<50 | 100>(100);
   const [peekingIndex, setPeekingIndex] = useState<number | null>(null);
-  const [blurAll, setBlurAll] = useState(false);
+  // Phase tracking: indices that have been shadowed (listened+read) and are ready for diktat
+  const [shadowedIndices, setShadowedIndices] = useState<Set<number>>(new Set());
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const blankRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -265,6 +266,41 @@ export default function LessonPage() {
     }
   }, [lesson?.videoType, ytCommand]);
 
+  // Advance from shadowing to diktat phase
+  const advanceToDiktat = useCallback((index: number) => {
+    setShadowedIndices(prev => {
+      const next = new Set(prev);
+      next.add(index);
+      return next;
+    });
+    // Focus first blank after transitioning
+    setTimeout(() => {
+      if (subTokens[index]) {
+        const firstBlank = Array.from(subTokens[index].blanks).sort((a, b) => a - b)[0];
+        if (firstBlank !== undefined) {
+          blankRefs.current[`${index}-${firstBlank}`]?.focus();
+        }
+      }
+    }, 150);
+  }, [subTokens]);
+
+  // Select a subtitle row
+  const selectSubtitle = useCallback((index: number) => {
+    setCurrentIndex(index);
+    seekToSubtitle(index);
+    // If already in diktat phase, focus first blank
+    if (shadowedIndices.has(index)) {
+      setTimeout(() => {
+        if (subTokens[index]) {
+          const firstBlank = Array.from(subTokens[index].blanks).sort((a, b) => a - b)[0];
+          if (firstBlank !== undefined) {
+            blankRefs.current[`${index}-${firstBlank}`]?.focus();
+          }
+        }
+      }, 100);
+    }
+  }, [seekToSubtitle, shadowedIndices, subTokens]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -282,6 +318,14 @@ export default function LessonPage() {
           seekToSubtitle(currentIndex); // replay current sub from start
         }
       }
+      // Enter: advance from shadow → diktat (only if not in a cloze input)
+      if (e.code === 'Enter' && !isInput) {
+        e.preventDefault();
+        const isCompleted = lesson ? completedIndices.includes(currentIndex) : false;
+        if (!isCompleted && !shadowedIndices.has(currentIndex)) {
+          advanceToDiktat(currentIndex);
+        }
+      }
       if (e.code === 'ArrowLeft' && !isInput) { e.preventDefault(); seekBy(-2); }
       if (e.code === 'ArrowRight' && !isInput) { e.preventDefault(); seekBy(2); }
       if (e.code === 'ArrowUp') {
@@ -296,7 +340,7 @@ export default function LessonPage() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlay, seekBy, seekToSubtitle, currentIndex, lesson]);
+  }, [togglePlay, seekBy, seekToSubtitle, currentIndex, lesson, shadowedIndices, completedIndices, advanceToDiktat, selectSubtitle]);
 
   // Scroll active subtitle to center of right panel
   useEffect(() => {
@@ -310,21 +354,6 @@ export default function LessonPage() {
       container.scrollTo({ top: scrollTo, behavior: 'smooth' });
     }
   }, [currentIndex]);
-
-  // Select a subtitle row
-  const selectSubtitle = (index: number) => {
-    setCurrentIndex(index);
-    seekToSubtitle(index);
-    // Focus first blank in this subtitle
-    setTimeout(() => {
-      if (subTokens[index]) {
-        const firstBlank = Array.from(subTokens[index].blanks).sort((a, b) => a - b)[0];
-        if (firstBlank !== undefined) {
-          blankRefs.current[`${index}-${firstBlank}`]?.focus();
-        }
-      }
-    }, 100);
-  };
 
   // Update a blank input value
   const setBlankValue = (subIdx: number, wordIdx: number, value: string) => {
@@ -408,16 +437,13 @@ export default function LessonPage() {
 
         saveProgress(subIdx, newCompleted, newScore, newAttempts);
 
-        // Auto-advance to next subtitle
+        // Auto-advance to next subtitle (starts in shadow phase)
         setTimeout(() => {
           if (subIdx < lesson.subtitles.length - 1) {
             const next = subIdx + 1;
             setCurrentIndex(next);
             seekToSubtitle(next);
-            setTimeout(() => {
-              const firstBlank = Array.from(subTokens[next]?.blanks || []).sort((a, b) => a - b)[0];
-              if (firstBlank !== undefined) blankRefs.current[`${next}-${firstBlank}`]?.focus();
-            }, 100);
+            // Next subtitle starts in shadow phase — no need to focus blanks
           }
         }, 600);
       } else if (currentPos < sortedBlanks.length - 1) {
@@ -508,6 +534,21 @@ export default function LessonPage() {
             </div>
           </div>
 
+          {/* Workflow phase indicator */}
+          <div className="workflow-indicator">
+            <div className="workflow-step">
+              <span className="workflow-step-number">1</span>
+              <span className="workflow-step-label">👤 Shadowing</span>
+              <span className="workflow-step-desc">Nghe + đọc theo</span>
+            </div>
+            <span className="workflow-arrow">→</span>
+            <div className="workflow-step">
+              <span className="workflow-step-number">2</span>
+              <span className="workflow-step-label">✍️ Diktat</span>
+              <span className="workflow-step-desc">Nghe + chép lại</span>
+            </div>
+          </div>
+
           {/* Difficulty toggle */}
           <div className="mode-toggle">
             <span className="mode-label">Schwierigkeit</span>
@@ -527,21 +568,12 @@ export default function LessonPage() {
             </div>
           </div>
 
-          {/* Shadowing blur toggle */}
-          <button
-            className={`shadowing-toggle ${blurAll ? 'shadowing-toggle-active' : ''}`}
-            onClick={() => setBlurAll(prev => !prev)}
-          >
-            <span className="shadowing-toggle-icon">{blurAll ? '👁' : '👤'}</span>
-            <span>{blurAll ? 'Text anzeigen' : 'Shadowing'}</span>
-          </button>
-
           <div className="lesson-shortcuts">
             <kbd>Space</kbd> Play/Pause
             <kbd>←</kbd> -2s
             <kbd>→</kbd> +2s
-            <kbd>↑</kbd> Vorheriger Satz
-            <kbd>↓</kbd> Nächster Satz
+            <kbd>↑↓</kbd> Chuyển câu
+            <kbd>Enter</kbd> Shadow → Diktat
             <kbd>Tab</kbd> Zwischen Feldern
           </div>
         </div>
@@ -552,6 +584,8 @@ export default function LessonPage() {
         {lesson.subtitles.map((sub, i) => {
           const isActive = i === currentIndex;
           const isCompleted = completedIndices.includes(i);
+          const isShadowed = shadowedIndices.has(i);
+          const phase: 'shadow' | 'diktat' | 'done' = isCompleted ? 'done' : isShadowed ? 'diktat' : 'shadow';
           const tokens = subTokens[i];
           if (!tokens) return null;
           const { words, blanks } = tokens;
@@ -564,7 +598,7 @@ export default function LessonPage() {
             <div
               key={i}
               id={`sub-${i}`}
-              className={`sub-row ${isActive ? 'sub-active' : ''} ${isCompleted ? 'sub-completed' : ''}`}
+              className={`sub-row ${isActive ? 'sub-active' : ''} ${isCompleted ? 'sub-completed' : ''} ${isActive && phase === 'shadow' ? 'sub-shadow-phase' : ''}`}
               onClick={() => selectSubtitle(i)}
             >
               <div className="sub-row-header">
@@ -577,8 +611,29 @@ export default function LessonPage() {
                   🔊
                 </button>
                 <span className="sub-time">{formatTime(sub.start)}</span>
+
+                {/* Phase badge */}
+                {isActive && phase === 'shadow' && (
+                  <span className="sub-phase-badge sub-phase-shadow">👤 Shadow</span>
+                )}
+                {isActive && phase === 'diktat' && (
+                  <span className="sub-phase-badge sub-phase-diktat">✍️ Diktat</span>
+                )}
                 {isCompleted && <span className="sub-check">✓</span>}
-                {isActive && !isCompleted && (
+
+                {/* Advance button: shadow → diktat */}
+                {isActive && phase === 'shadow' && (
+                  <button
+                    className="sub-action-btn sub-action-advance"
+                    onClick={(e) => { e.stopPropagation(); advanceToDiktat(i); }}
+                    title="Weiter zum Diktat (Enter)"
+                  >
+                    Diktat starten →
+                  </button>
+                )}
+
+                {/* Peek button in diktat phase */}
+                {isActive && phase === 'diktat' && (
                   <button
                     className={`sub-action-btn sub-action-hint ${peekingIndex === i ? 'sub-action-peeking' : ''}`}
                     onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); startPeek(i); }}
@@ -593,79 +648,89 @@ export default function LessonPage() {
                 )}
               </div>
 
-              {/* Fill-in-the-blank sentence */}
-              <div className={`sub-cloze ${blurAll && isCompleted ? 'sub-cloze-blurred' : ''}`}>
-                {words.map((word, wi) => {
-                  const isBlank = blanks.has(wi);
-                  const result = subResults[wi];
-                  const userVal = subInputs[wi] || '';
-                  const cleanWord = word.replace(/[.,!?;:'"„"»«]/g, '');
-                  const punct = word.slice(cleanWord.length);
+              {/* Subtitle content — depends on phase */}
+              <div className="sub-cloze">
+                {/* PHASE: shadow or done — show full text */}
+                {(phase === 'shadow' || phase === 'done') && (
+                  <>{words.map((word, wi) => (
+                    <span key={wi} className={`cloze-word ${phase === 'done' ? 'cloze-correct' : 'cloze-shadow-text'}`}>{word}{' '}</span>
+                  ))}</>
+                )}
 
-                  // Completed or peeking — show all words revealed
-                  if (isCompleted || allBlanksCorrect || isPeeking) {
-                    return <span key={wi} className={`cloze-word ${isPeeking ? 'cloze-peek' : 'cloze-correct'}`}>{word}{' '}</span>;
-                  }
+                {/* PHASE: diktat — cloze blanks */}
+                {phase === 'diktat' && (
+                  <>{words.map((word, wi) => {
+                    const isBlank = blanks.has(wi);
+                    const result = subResults[wi];
+                    const userVal = subInputs[wi] || '';
+                    const cleanWord = word.replace(/[.,!?;:'"„"»«]/g, '');
+                    const punct = word.slice(cleanWord.length);
 
-                  // Non-blank — show as masked underscores
-                  if (!isBlank) {
-                    return (
-                      <span key={wi} className="cloze-word cloze-masked">
-                        {cleanWord.replace(/./g, '_')}{punct}{' '}
-                      </span>
-                    );
-                  }
+                    // Peeking — show all words revealed
+                    if (allBlanksCorrect || isPeeking) {
+                      return <span key={wi} className={`cloze-word ${isPeeking ? 'cloze-peek' : 'cloze-correct'}`}>{word}{' '}</span>;
+                    }
 
-                  // Blank but NOT active row — just show simple placeholder (performance!)
-                  if (!isActive) {
+                    // Non-blank — show as masked underscores
+                    if (!isBlank) {
+                      return (
+                        <span key={wi} className="cloze-word cloze-masked">
+                          {cleanWord.replace(/./g, '_')}{punct}{' '}
+                        </span>
+                      );
+                    }
+
+                    // Blank but NOT active row — just show simple placeholder
+                    if (!isActive) {
+                      if (result === 'correct') {
+                        return <span key={wi} className="cloze-word cloze-correct">{word}{' '}</span>;
+                      }
+                      return (
+                        <span key={wi} className="cloze-word cloze-masked">
+                          {cleanWord.replace(/./g, '_')}{punct}{' '}
+                        </span>
+                      );
+                    }
+
+                    // Active row blank — if already correct, show as revealed text
                     if (result === 'correct') {
                       return <span key={wi} className="cloze-word cloze-correct">{word}{' '}</span>;
                     }
+
+                    // Active row blank — full character cells with hidden input
+                    const chars = cleanWord.split('');
                     return (
-                      <span key={wi} className="cloze-word cloze-masked">
-                        {cleanWord.replace(/./g, '_')}{punct}{' '}
+                      <span
+                        key={wi}
+                        className="cloze-chars-wrap"
+                        onClick={(e) => { e.stopPropagation(); blankRefs.current[`${i}-${wi}`]?.focus(); }}
+                      >
+                        <input
+                          ref={el => { blankRefs.current[`${i}-${wi}`] = el; }}
+                          type="text"
+                          className="cloze-hidden-input"
+                          value={userVal}
+                          onChange={e => handleBlankChange(i, wi, e.target.value)}
+                          onKeyDown={e => handleBlankKeyDown(e, i, wi)}
+                          autoFocus={wi === Array.from(blanks).sort((a, b) => a - b)[0]}
+                          maxLength={cleanWord.length}
+                        />
+                        {chars.map((ch, ci) => {
+                          const typed = userVal[ci];
+                          let cls = 'cloze-char';
+                          if (typed) {
+                            cls += typed.toLowerCase() === ch.toLowerCase() ? ' cloze-char-correct' : ' cloze-char-incorrect';
+                          } else {
+                            cls += ' cloze-char-empty';
+                          }
+                          return <span key={ci} className={cls}>{typed || '_'}</span>;
+                        })}
+                        {punct && <span className="cloze-punct">{punct}</span>}
+                        {' '}
                       </span>
                     );
-                  }
-
-                  // Active row blank — if already correct, show as revealed text
-                  if (result === 'correct') {
-                    return <span key={wi} className="cloze-word cloze-correct">{word}{' '}</span>;
-                  }
-
-                  // Active row blank — full character cells with hidden input
-                  const chars = cleanWord.split('');
-                  return (
-                    <span
-                      key={wi}
-                      className="cloze-chars-wrap"
-                      onClick={(e) => { e.stopPropagation(); blankRefs.current[`${i}-${wi}`]?.focus(); }}
-                    >
-                      <input
-                        ref={el => { blankRefs.current[`${i}-${wi}`] = el; }}
-                        type="text"
-                        className="cloze-hidden-input"
-                        value={userVal}
-                        onChange={e => handleBlankChange(i, wi, e.target.value)}
-                        onKeyDown={e => handleBlankKeyDown(e, i, wi)}
-                        autoFocus={wi === Array.from(blanks).sort((a, b) => a - b)[0]}
-                        maxLength={cleanWord.length}
-                      />
-                      {chars.map((ch, ci) => {
-                        const typed = userVal[ci];
-                        let cls = 'cloze-char';
-                        if (typed) {
-                          cls += typed.toLowerCase() === ch.toLowerCase() ? ' cloze-char-correct' : ' cloze-char-incorrect';
-                        } else {
-                          cls += ' cloze-char-empty';
-                        }
-                        return <span key={ci} className={cls}>{typed || '_'}</span>;
-                      })}
-                      {punct && <span className="cloze-punct">{punct}</span>}
-                      {' '}
-                    </span>
-                  );
-                })}
+                  })}</>
+                )}
               </div>
             </div>
           );

@@ -225,6 +225,61 @@ a:hover { @apply text-accent-hover; }
 .shadowing-toggle-icon { @apply text-lg transition-transform duration-300; }
 .shadowing-toggle:hover .shadowing-toggle-icon { @apply scale-115; }
 
+/* ═══ WORKFLOW INDICATOR ═══ */
+.workflow-indicator {
+  @apply flex items-center gap-3 mb-4 py-3 px-4 bg-bg-card border border-border rounded-lg;
+}
+.workflow-step {
+  @apply flex-1 flex flex-col items-center gap-0.5;
+}
+.workflow-step-number {
+  @apply w-5 h-5 rounded-full bg-accent/20 text-accent text-[0.65rem] font-bold flex items-center justify-center mb-0.5;
+}
+.workflow-step-label {
+  @apply text-xs font-semibold text-text-primary;
+}
+.workflow-step-desc {
+  @apply text-[0.65rem] text-text-muted;
+}
+.workflow-arrow {
+  @apply text-text-muted text-lg font-bold shrink-0 mt-1;
+}
+
+/* ═══ PHASE BADGES ═══ */
+.sub-phase-badge {
+  @apply py-0.5 px-2.5 rounded-full text-[0.68rem] font-bold tracking-wide ml-auto;
+  animation: fadeIn 0.3s ease;
+}
+.sub-phase-shadow {
+  @apply bg-cyan/15 text-cyan border border-cyan/30;
+}
+.sub-phase-diktat {
+  @apply bg-accent/15 text-accent border border-accent/30;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* ═══ SHADOW PHASE ACTIVE ═══ */
+.sub-shadow-phase {
+  border-color: var(--color-cyan) !important;
+  box-shadow: 0 0 20px rgba(34,211,238,0.15) !important;
+}
+.cloze-shadow-text {
+  @apply text-text-primary opacity-90;
+}
+
+/* ═══ ADVANCE BUTTON ═══ */
+.sub-action-advance {
+  @apply ml-auto bg-gradient-to-r from-cyan to-accent text-white border-none py-1.5 px-4 rounded-lg text-[0.75rem] font-bold cursor-pointer font-sans transition-all duration-300;
+  box-shadow: 0 2px 12px rgba(34,211,238,0.3);
+}
+.sub-action-advance:hover {
+  @apply -translate-y-0.5;
+  box-shadow: 0 4px 20px rgba(34,211,238,0.5);
+}
+
 /* ═══ CLOZE ═══ */
 .sub-cloze { @apply py-2 pb-1 pl-[38px] leading-[2.2] text-sm font-medium transition-all duration-300; }
 .sub-cloze-blurred { @apply blur-[5px] select-none cursor-pointer; }

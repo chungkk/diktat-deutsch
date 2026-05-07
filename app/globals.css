@@ -270,6 +270,49 @@ a:hover { @apply text-accent-hover; }
   @apply text-text-primary opacity-90;
 }
 
+/* ═══ SQUARE BOX MASKED ═══ */
+.cloze-square-box {
+  @apply text-text-muted tracking-wider;
+  font-size: 0.85em;
+  letter-spacing: 0.08em;
+  opacity: 0.45;
+}
+
+/* ═══ TEXT HIDDEN STATE ═══ */
+.sub-cloze-hidden {
+  @apply opacity-80;
+}
+
+/* ═══ WORKFLOW STEP STATES ═══ */
+.workflow-step-active .workflow-step-number {
+  @apply bg-accent text-white;
+  box-shadow: 0 0 12px rgba(168,85,247,0.4);
+}
+.workflow-step-active .workflow-step-label {
+  @apply text-accent;
+}
+.workflow-step-done .workflow-step-number {
+  @apply bg-success/20 text-success;
+}
+.workflow-step-done .workflow-step-label {
+  @apply text-success;
+}
+
+/* ═══ SWITCH TO DIKTAT BUTTON ═══ */
+.switch-diktat-btn {
+  @apply mb-3;
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 2px 16px rgba(168,85,247,0.3); }
+  50% { box-shadow: 0 4px 30px rgba(168,85,247,0.6), 0 0 40px rgba(244,114,182,0.2); }
+}
+
+/* ═══ SHADOWING PROGRESS INFO ═══ */
+.shadowing-progress-info {
+  @apply flex flex-col gap-1 mb-4 py-2 px-3 bg-bg-card border border-border rounded-lg;
+}
+
 /* ═══ ADVANCE BUTTON ═══ */
 .sub-action-advance {
   @apply ml-auto bg-gradient-to-r from-cyan to-accent text-white border-none py-1.5 px-4 rounded-lg text-[0.75rem] font-bold cursor-pointer font-sans transition-all duration-300;

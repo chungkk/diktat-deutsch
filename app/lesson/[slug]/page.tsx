@@ -59,8 +59,12 @@ export default function LessonPage() {
   const [loading, setLoading] = useState(true);
   const [blankMode, setBlankMode] = useState<50 | 100>(100);
   const [peekingIndex, setPeekingIndex] = useState<number | null>(null);
-  // Phase tracking: indices that have been shadowed (listened+read) and are ready for diktat
-  const [shadowedIndices, setShadowedIndices] = useState<Set<number>>(new Set());
+  // Global lesson phase: shadowing first, then diktat
+  const [lessonPhase, setLessonPhase] = useState<'shadowing' | 'diktat'>('shadowing');
+  // Hide text toggle during shadowing
+  const [shadowTextHidden, setShadowTextHidden] = useState(false);
+  // Track highest visited subtitle index during shadowing
+  const [highestVisitedIndex, setHighestVisitedIndex] = useState(0);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const blankRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -266,30 +270,38 @@ export default function LessonPage() {
     }
   }, [lesson?.videoType, ytCommand]);
 
-  // Advance from shadowing to diktat phase
-  const advanceToDiktat = useCallback((index: number) => {
-    setShadowedIndices(prev => {
-      const next = new Set(prev);
-      next.add(index);
-      return next;
-    });
-    // Focus first blank after transitioning
+  // Track highest visited subtitle during shadowing
+  useEffect(() => {
+    if (lessonPhase === 'shadowing' && currentIndex > highestVisitedIndex) {
+      setHighestVisitedIndex(currentIndex);
+    }
+  }, [currentIndex, lessonPhase, highestVisitedIndex]);
+
+  // Check if user has completed one full shadowing pass
+  const hasCompletedShadowing = lesson ? highestVisitedIndex >= lesson.subtitles.length - 1 : false;
+
+  // Switch global phase to diktat
+  const switchToDiktat = useCallback(() => {
+    setLessonPhase('diktat');
+    setCurrentIndex(0);
+    setShadowTextHidden(false);
+    // Focus first blank of first subtitle
     setTimeout(() => {
-      if (subTokens[index]) {
-        const firstBlank = Array.from(subTokens[index].blanks).sort((a, b) => a - b)[0];
+      if (subTokens[0]) {
+        const firstBlank = Array.from(subTokens[0].blanks).sort((a, b) => a - b)[0];
         if (firstBlank !== undefined) {
-          blankRefs.current[`${index}-${firstBlank}`]?.focus();
+          blankRefs.current[`0-${firstBlank}`]?.focus();
         }
       }
-    }, 150);
+    }, 200);
   }, [subTokens]);
 
   // Select a subtitle row
   const selectSubtitle = useCallback((index: number) => {
     setCurrentIndex(index);
     seekToSubtitle(index);
-    // If already in diktat phase, focus first blank
-    if (shadowedIndices.has(index)) {
+    // In diktat phase, focus first blank
+    if (lessonPhase === 'diktat') {
       setTimeout(() => {
         if (subTokens[index]) {
           const firstBlank = Array.from(subTokens[index].blanks).sort((a, b) => a - b)[0];
@@ -299,7 +311,7 @@ export default function LessonPage() {
         }
       }, 100);
     }
-  }, [seekToSubtitle, shadowedIndices, subTokens]);
+  }, [seekToSubtitle, lessonPhase, subTokens]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -318,14 +330,6 @@ export default function LessonPage() {
           seekToSubtitle(currentIndex); // replay current sub from start
         }
       }
-      // Enter: advance from shadow → diktat (only if not in a cloze input)
-      if (e.code === 'Enter' && !isInput) {
-        e.preventDefault();
-        const isCompleted = lesson ? completedIndices.includes(currentIndex) : false;
-        if (!isCompleted && !shadowedIndices.has(currentIndex)) {
-          advanceToDiktat(currentIndex);
-        }
-      }
       if (e.code === 'ArrowLeft' && !isInput) { e.preventDefault(); seekBy(-2); }
       if (e.code === 'ArrowRight' && !isInput) { e.preventDefault(); seekBy(2); }
       if (e.code === 'ArrowUp') {
@@ -340,7 +344,7 @@ export default function LessonPage() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlay, seekBy, seekToSubtitle, currentIndex, lesson, shadowedIndices, completedIndices, advanceToDiktat, selectSubtitle]);
+  }, [togglePlay, seekBy, seekToSubtitle, currentIndex, lesson, selectSubtitle]);
 
   // Scroll active subtitle to center of right panel
   useEffect(() => {
@@ -437,13 +441,21 @@ export default function LessonPage() {
 
         saveProgress(subIdx, newCompleted, newScore, newAttempts);
 
-        // Auto-advance to next subtitle (starts in shadow phase)
+        // Auto-advance to next subtitle in diktat
         setTimeout(() => {
           if (subIdx < lesson.subtitles.length - 1) {
             const next = subIdx + 1;
             setCurrentIndex(next);
             seekToSubtitle(next);
-            // Next subtitle starts in shadow phase — no need to focus blanks
+            // Focus first blank of next subtitle
+            setTimeout(() => {
+              if (subTokens[next]) {
+                const firstBlank = Array.from(subTokens[next].blanks).sort((a, b) => a - b)[0];
+                if (firstBlank !== undefined) {
+                  blankRefs.current[`${next}-${firstBlank}`]?.focus();
+                }
+              }
+            }, 150);
           }
         }, 600);
       } else if (currentPos < sortedBlanks.length - 1) {
@@ -536,45 +548,81 @@ export default function LessonPage() {
 
           {/* Workflow phase indicator */}
           <div className="workflow-indicator">
-            <div className="workflow-step">
+            <div className={`workflow-step ${lessonPhase === 'shadowing' ? 'workflow-step-active' : 'workflow-step-done'}`}>
               <span className="workflow-step-number">1</span>
               <span className="workflow-step-label">👤 Shadowing</span>
               <span className="workflow-step-desc">Nghe + đọc theo</span>
             </div>
             <span className="workflow-arrow">→</span>
-            <div className="workflow-step">
+            <div className={`workflow-step ${lessonPhase === 'diktat' ? 'workflow-step-active' : ''}`}>
               <span className="workflow-step-number">2</span>
               <span className="workflow-step-label">✍️ Diktat</span>
               <span className="workflow-step-desc">Nghe + chép lại</span>
             </div>
           </div>
 
-          {/* Difficulty toggle */}
-          <div className="mode-toggle">
-            <span className="mode-label">Schwierigkeit</span>
-            <div className="mode-buttons">
+          {/* Shadowing controls */}
+          {lessonPhase === 'shadowing' && (
+            <>
+              {/* Toggle text visibility */}
               <button
-                className={`mode-btn ${blankMode === 50 ? 'mode-btn-active' : ''}`}
-                onClick={() => setBlankMode(50)}
+                className={`shadowing-toggle ${shadowTextHidden ? 'shadowing-toggle-active' : ''}`}
+                onClick={() => setShadowTextHidden(prev => !prev)}
               >
-                50% Lücken
+                <span className="shadowing-toggle-icon">{shadowTextHidden ? '👁' : '🙈'}</span>
+                {shadowTextHidden ? 'Text anzeigen' : 'Text ausblenden'}
               </button>
-              <button
-                className={`mode-btn ${blankMode === 100 ? 'mode-btn-active' : ''}`}
-                onClick={() => setBlankMode(100)}
-              >
-                100% Diktat
-              </button>
+
+              {/* Switch to diktat after completing shadowing */}
+              {hasCompletedShadowing && (
+                <button
+                  className="btn btn-primary btn-block switch-diktat-btn"
+                  onClick={switchToDiktat}
+                >
+                  ✍️ Jetzt Diktat starten
+                </button>
+              )}
+
+              <div className="shadowing-progress-info">
+                <span className="text-text-muted text-xs">
+                  Shadowing: {Math.min(highestVisitedIndex + 1, totalSubs)} / {totalSubs} gehört
+                </span>
+                {!hasCompletedShadowing && (
+                  <span className="text-text-muted text-xs" style={{ opacity: 0.6 }}>
+                    Alle Sätze anhören um Diktat freizuschalten
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Difficulty toggle — only in diktat phase */}
+          {lessonPhase === 'diktat' && (
+            <div className="mode-toggle">
+              <span className="mode-label">Schwierigkeit</span>
+              <div className="mode-buttons">
+                <button
+                  className={`mode-btn ${blankMode === 50 ? 'mode-btn-active' : ''}`}
+                  onClick={() => setBlankMode(50)}
+                >
+                  50% Lücken
+                </button>
+                <button
+                  className={`mode-btn ${blankMode === 100 ? 'mode-btn-active' : ''}`}
+                  onClick={() => setBlankMode(100)}
+                >
+                  100% Diktat
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="lesson-shortcuts">
             <kbd>Space</kbd> Play/Pause
             <kbd>←</kbd> -2s
             <kbd>→</kbd> +2s
             <kbd>↑↓</kbd> Chuyển câu
-            <kbd>Enter</kbd> Shadow → Diktat
-            <kbd>Tab</kbd> Zwischen Feldern
+            {lessonPhase === 'diktat' && <><kbd>Tab</kbd> Zwischen Feldern</>}
           </div>
         </div>
       </div>
@@ -584,8 +632,6 @@ export default function LessonPage() {
         {lesson.subtitles.map((sub, i) => {
           const isActive = i === currentIndex;
           const isCompleted = completedIndices.includes(i);
-          const isShadowed = shadowedIndices.has(i);
-          const phase: 'shadow' | 'diktat' | 'done' = isCompleted ? 'done' : isShadowed ? 'diktat' : 'shadow';
           const tokens = subTokens[i];
           if (!tokens) return null;
           const { words, blanks } = tokens;
@@ -598,7 +644,7 @@ export default function LessonPage() {
             <div
               key={i}
               id={`sub-${i}`}
-              className={`sub-row ${isActive ? 'sub-active' : ''} ${isCompleted ? 'sub-completed' : ''} ${isActive && phase === 'shadow' ? 'sub-shadow-phase' : ''}`}
+              className={`sub-row ${isActive ? 'sub-active' : ''} ${isCompleted ? 'sub-completed' : ''} ${isActive && lessonPhase === 'shadowing' ? 'sub-shadow-phase' : ''}`}
               onClick={() => selectSubtitle(i)}
             >
               <div className="sub-row-header">
@@ -613,27 +659,16 @@ export default function LessonPage() {
                 <span className="sub-time">{formatTime(sub.start)}</span>
 
                 {/* Phase badge */}
-                {isActive && phase === 'shadow' && (
+                {isActive && lessonPhase === 'shadowing' && (
                   <span className="sub-phase-badge sub-phase-shadow">👤 Shadow</span>
                 )}
-                {isActive && phase === 'diktat' && (
+                {isActive && lessonPhase === 'diktat' && !isCompleted && (
                   <span className="sub-phase-badge sub-phase-diktat">✍️ Diktat</span>
                 )}
                 {isCompleted && <span className="sub-check">✓</span>}
 
-                {/* Advance button: shadow → diktat */}
-                {isActive && phase === 'shadow' && (
-                  <button
-                    className="sub-action-btn sub-action-advance"
-                    onClick={(e) => { e.stopPropagation(); advanceToDiktat(i); }}
-                    title="Weiter zum Diktat (Enter)"
-                  >
-                    Diktat starten →
-                  </button>
-                )}
-
                 {/* Peek button in diktat phase */}
-                {isActive && phase === 'diktat' && (
+                {isActive && lessonPhase === 'diktat' && !isCompleted && (
                   <button
                     className={`sub-action-btn sub-action-hint ${peekingIndex === i ? 'sub-action-peeking' : ''}`}
                     onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); startPeek(i); }}
@@ -648,88 +683,110 @@ export default function LessonPage() {
                 )}
               </div>
 
-              {/* Subtitle content — depends on phase */}
-              <div className="sub-cloze">
-                {/* PHASE: shadow or done — show full text */}
-                {(phase === 'shadow' || phase === 'done') && (
-                  <>{words.map((word, wi) => (
-                    <span key={wi} className={`cloze-word ${phase === 'done' ? 'cloze-correct' : 'cloze-shadow-text'}`}>{word}{' '}</span>
-                  ))}</>
+              {/* Subtitle content — depends on global phase */}
+              <div className={`sub-cloze ${lessonPhase === 'shadowing' && shadowTextHidden ? 'sub-cloze-hidden' : ''}`}>
+                {/* SHADOWING PHASE: show full text (or hidden) */}
+                {lessonPhase === 'shadowing' && (
+                  <>
+                    {shadowTextHidden ? (
+                      // Square boxes when text is hidden
+                      <>{words.map((word, wi) => (
+                        <span key={wi} className="cloze-word cloze-square-box">
+                          {word.replace(/[.,!?;:'"„"»«]/g, '').replace(/./g, '■')}{word.slice(word.replace(/[.,!?;:'"„"»«]/g, '').length)}{' '}
+                        </span>
+                      ))}</>
+                    ) : (
+                      // Full readable text
+                      <>{words.map((word, wi) => (
+                        <span key={wi} className="cloze-word cloze-shadow-text">{word}{' '}</span>
+                      ))}</>
+                    )}
+                  </>
                 )}
 
-                {/* PHASE: diktat — cloze blanks */}
-                {phase === 'diktat' && (
-                  <>{words.map((word, wi) => {
-                    const isBlank = blanks.has(wi);
-                    const result = subResults[wi];
-                    const userVal = subInputs[wi] || '';
-                    const cleanWord = word.replace(/[.,!?;:'"„"»«]/g, '');
-                    const punct = word.slice(cleanWord.length);
+                {/* DIKTAT PHASE: completed shows green text, others show ■ boxes + cloze inputs */}
+                {lessonPhase === 'diktat' && (
+                  <>
+                    {isCompleted ? (
+                      // Completed — show full text in green
+                      <>{words.map((word, wi) => (
+                        <span key={wi} className="cloze-word cloze-correct">{word}{' '}</span>
+                      ))}</>
+                    ) : (
+                      // Not completed — show cloze
+                      <>{words.map((word, wi) => {
+                        const isBlank = blanks.has(wi);
+                        const result = subResults[wi];
+                        const userVal = subInputs[wi] || '';
+                        const cleanWord = word.replace(/[.,!?;:'"„"»«]/g, '');
+                        const punct = word.slice(cleanWord.length);
 
-                    // Peeking — show all words revealed
-                    if (allBlanksCorrect || isPeeking) {
-                      return <span key={wi} className={`cloze-word ${isPeeking ? 'cloze-peek' : 'cloze-correct'}`}>{word}{' '}</span>;
-                    }
+                        // Peeking — show all words revealed
+                        if (allBlanksCorrect || isPeeking) {
+                          return <span key={wi} className={`cloze-word ${isPeeking ? 'cloze-peek' : 'cloze-correct'}`}>{word}{' '}</span>;
+                        }
 
-                    // Non-blank — show as masked underscores
-                    if (!isBlank) {
-                      return (
-                        <span key={wi} className="cloze-word cloze-masked">
-                          {cleanWord.replace(/./g, '_')}{punct}{' '}
-                        </span>
-                      );
-                    }
+                        // Non-blank — show as ■ squares
+                        if (!isBlank) {
+                          return (
+                            <span key={wi} className="cloze-word cloze-square-box">
+                              {cleanWord.replace(/./g, '■')}{punct}{' '}
+                            </span>
+                          );
+                        }
 
-                    // Blank but NOT active row — just show simple placeholder
-                    if (!isActive) {
-                      if (result === 'correct') {
-                        return <span key={wi} className="cloze-word cloze-correct">{word}{' '}</span>;
-                      }
-                      return (
-                        <span key={wi} className="cloze-word cloze-masked">
-                          {cleanWord.replace(/./g, '_')}{punct}{' '}
-                        </span>
-                      );
-                    }
-
-                    // Active row blank — if already correct, show as revealed text
-                    if (result === 'correct') {
-                      return <span key={wi} className="cloze-word cloze-correct">{word}{' '}</span>;
-                    }
-
-                    // Active row blank — full character cells with hidden input
-                    const chars = cleanWord.split('');
-                    return (
-                      <span
-                        key={wi}
-                        className="cloze-chars-wrap"
-                        onClick={(e) => { e.stopPropagation(); blankRefs.current[`${i}-${wi}`]?.focus(); }}
-                      >
-                        <input
-                          ref={el => { blankRefs.current[`${i}-${wi}`] = el; }}
-                          type="text"
-                          className="cloze-hidden-input"
-                          value={userVal}
-                          onChange={e => handleBlankChange(i, wi, e.target.value)}
-                          onKeyDown={e => handleBlankKeyDown(e, i, wi)}
-                          autoFocus={wi === Array.from(blanks).sort((a, b) => a - b)[0]}
-                          maxLength={cleanWord.length}
-                        />
-                        {chars.map((ch, ci) => {
-                          const typed = userVal[ci];
-                          let cls = 'cloze-char';
-                          if (typed) {
-                            cls += typed.toLowerCase() === ch.toLowerCase() ? ' cloze-char-correct' : ' cloze-char-incorrect';
-                          } else {
-                            cls += ' cloze-char-empty';
+                        // Blank but NOT active row — show ■ squares
+                        if (!isActive) {
+                          if (result === 'correct') {
+                            return <span key={wi} className="cloze-word cloze-correct">{word}{' '}</span>;
                           }
-                          return <span key={ci} className={cls}>{typed || '_'}</span>;
-                        })}
-                        {punct && <span className="cloze-punct">{punct}</span>}
-                        {' '}
-                      </span>
-                    );
-                  })}</>
+                          return (
+                            <span key={wi} className="cloze-word cloze-square-box">
+                              {cleanWord.replace(/./g, '■')}{punct}{' '}
+                            </span>
+                          );
+                        }
+
+                        // Active row blank — if already correct, show as revealed text
+                        if (result === 'correct') {
+                          return <span key={wi} className="cloze-word cloze-correct">{word}{' '}</span>;
+                        }
+
+                        // Active row blank — full character cells with hidden input
+                        const chars = cleanWord.split('');
+                        return (
+                          <span
+                            key={wi}
+                            className="cloze-chars-wrap"
+                            onClick={(e) => { e.stopPropagation(); blankRefs.current[`${i}-${wi}`]?.focus(); }}
+                          >
+                            <input
+                              ref={el => { blankRefs.current[`${i}-${wi}`] = el; }}
+                              type="text"
+                              className="cloze-hidden-input"
+                              value={userVal}
+                              onChange={e => handleBlankChange(i, wi, e.target.value)}
+                              onKeyDown={e => handleBlankKeyDown(e, i, wi)}
+                              autoFocus={wi === Array.from(blanks).sort((a, b) => a - b)[0]}
+                              maxLength={cleanWord.length}
+                            />
+                            {chars.map((ch, ci) => {
+                              const typed = userVal[ci];
+                              let cls = 'cloze-char';
+                              if (typed) {
+                                cls += typed.toLowerCase() === ch.toLowerCase() ? ' cloze-char-correct' : ' cloze-char-incorrect';
+                              } else {
+                                cls += ' cloze-char-empty';
+                              }
+                              return <span key={ci} className={cls}>{typed || '■'}</span>;
+                            })}
+                            {punct && <span className="cloze-punct">{punct}</span>}
+                            {' '}
+                          </span>
+                        );
+                      })}</>
+                    )}
+                  </>
                 )}
               </div>
             </div>

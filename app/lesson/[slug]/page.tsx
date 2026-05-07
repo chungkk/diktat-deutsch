@@ -103,6 +103,24 @@ export default function LessonPage() {
   // YouTube iframe postMessage API
   const ytIframeRef = useRef<HTMLIFrameElement | null>(null);
   const ytStateRef = useRef<number>(-1); // -1 = unstarted, 1 = playing, 2 = paused
+  const ytReadyRef = useRef(false);
+
+  // Send 'listening' event to YouTube iframe so it starts sending infoDelivery (with currentTime)
+  const initYtListening = useCallback(() => {
+    if (!ytIframeRef.current?.contentWindow) return;
+    ytIframeRef.current.contentWindow.postMessage(
+      JSON.stringify({ event: 'listening', id: 'diktat' }),
+      'https://www.youtube.com'
+    );
+    ytReadyRef.current = true;
+  }, []);
+
+  // Called when iframe finishes loading
+  const handleYtIframeLoad = useCallback(() => {
+    // Send listening event with a small delay to ensure player is initialized
+    setTimeout(() => initYtListening(), 500);
+    setTimeout(() => initYtListening(), 1500);
+  }, [initYtListening]);
 
   useEffect(() => {
     if (!lesson || lesson.videoType !== 'youtube') return;
@@ -111,6 +129,10 @@ export default function LessonPage() {
       if (e.origin !== 'https://www.youtube.com') return;
       try {
         const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+
+        // Re-send listening on any YouTube message to ensure we keep getting updates
+        if (!ytReadyRef.current) initYtListening();
+
         if (data.event === 'onStateChange' || data.info?.playerState !== undefined) {
           const state = data.info?.playerState ?? data.info;
           ytStateRef.current = state;
@@ -130,7 +152,7 @@ export default function LessonPage() {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [lesson]);
+  }, [lesson, initYtListening]);
 
   const ytTimeRef = useRef<number>(0);
 
@@ -142,12 +164,13 @@ export default function LessonPage() {
     );
   }, []);
 
-  // Listen for time updates
+  // Poll for time updates — also re-init listening periodically as a safety net
   useEffect(() => {
     if (!lesson || lesson.videoType !== 'youtube') return;
     const interval = setInterval(() => {
       ytCommand('getCurrentTime');
-    }, 200);
+      ytCommand('getPlayerState');
+    }, 150);
     return () => clearInterval(interval);
   }, [lesson, ytCommand]);
 
@@ -168,28 +191,48 @@ export default function LessonPage() {
     });
   }, [lesson]);
 
+  // Fallback timeout ref for auto-pause (in case postMessage time tracking fails)
+  const autoPauseFallback = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Seek to subtitle and auto-pause when it ends
   const seekToSubtitle = useCallback((index: number) => {
     if (!lesson) return;
     const sub = lesson.subtitles[index];
     if (!sub) return;
 
+    // Clear existing timers
     if (autoPauseTimer.current) {
       clearInterval(autoPauseTimer.current);
       autoPauseTimer.current = null;
     }
+    if (autoPauseFallback.current) {
+      clearTimeout(autoPauseFallback.current);
+      autoPauseFallback.current = null;
+    }
 
     const endTime = sub.start + sub.dur + 0.3;
+    const durationMs = (sub.dur + 0.5) * 1000; // fallback duration in ms
 
     if (lesson.videoType === 'youtube') {
       ytCommand('seekTo', [sub.start, true]);
       ytCommand('playVideo');
+
+      // Primary: poll-based auto-pause using currentTime from postMessage
       autoPauseTimer.current = setInterval(() => {
         if (ytTimeRef.current >= endTime) {
           ytCommand('pauseVideo');
           if (autoPauseTimer.current) { clearInterval(autoPauseTimer.current); autoPauseTimer.current = null; }
+          if (autoPauseFallback.current) { clearTimeout(autoPauseFallback.current); autoPauseFallback.current = null; }
         }
-      }, 100);
+      }, 80);
+
+      // Fallback: if postMessage time tracking fails, pause after estimated duration
+      autoPauseFallback.current = setTimeout(() => {
+        ytCommand('pauseVideo');
+        if (autoPauseTimer.current) { clearInterval(autoPauseTimer.current); autoPauseTimer.current = null; }
+        autoPauseFallback.current = null;
+      }, durationMs);
+
     } else if (lesson.videoType === 'local' && videoRef.current) {
       videoRef.current.currentTime = sub.start;
       videoRef.current.play();
@@ -198,12 +241,13 @@ export default function LessonPage() {
           videoRef.current.pause();
           if (autoPauseTimer.current) { clearInterval(autoPauseTimer.current); autoPauseTimer.current = null; }
         }
-      }, 100);
+      }, 80);
     }
   }, [lesson, ytCommand]);
 
   const togglePlay = useCallback(() => {
     if (autoPauseTimer.current) { clearInterval(autoPauseTimer.current); autoPauseTimer.current = null; }
+    if (autoPauseFallback.current) { clearTimeout(autoPauseFallback.current); autoPauseFallback.current = null; }
     if (lesson?.videoType === 'youtube') {
       if (ytStateRef.current === 1) ytCommand('pauseVideo');
       else ytCommand('playVideo');
@@ -434,6 +478,7 @@ export default function LessonPage() {
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
                 title={lesson.title}
+                onLoad={handleYtIframeLoad}
               />
             ) : (
               <video

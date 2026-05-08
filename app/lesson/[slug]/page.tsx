@@ -318,17 +318,10 @@ export default function LessonPage() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-      // Space: if playing → pause, if paused → replay current subtitle from start
+      // Space: always replay current subtitle from the beginning
       if (e.code === 'Space') {
         e.preventDefault();
-        const isCurrentlyPlaying = lesson?.videoType === 'youtube'
-          ? ytStateRef.current === 1
-          : videoRef.current ? !videoRef.current.paused : false;
-        if (isCurrentlyPlaying) {
-          togglePlay(); // pause
-        } else {
-          seekToSubtitle(currentIndex); // replay current sub from start
-        }
+        seekToSubtitle(currentIndex);
       }
       if (e.code === 'ArrowLeft' && !isInput) { e.preventDefault(); seekBy(-2); }
       if (e.code === 'ArrowRight' && !isInput) { e.preventDefault(); seekBy(2); }
@@ -618,7 +611,7 @@ export default function LessonPage() {
           )}
 
           <div className="lesson-shortcuts">
-            <kbd>Space</kbd> Play/Pause
+            <kbd>Space</kbd> Wiederholen
             <kbd>←</kbd> -2s
             <kbd>→</kbd> +2s
             <kbd>↑↓</kbd> Chuyển câu

@@ -14,6 +14,7 @@ export default function Navbar() {
           {session ? (
             <>
               <Link href="/">Lektionen</Link>
+              <Link href="/podcast">🎙️ Podcasts</Link>
               <div className="navbar-dropdown">
                 <span className="navbar-user">{session.user?.name}</span>
                 <div className="navbar-dropdown-menu">

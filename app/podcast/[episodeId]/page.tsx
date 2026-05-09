@@ -479,7 +479,15 @@ export default function PodcastEpisodePage() {
                       <>{words.map((word, wi) => (
                         <span key={wi} className="cloze-word cloze-correct">{word}{' '}</span>
                       ))}</>
+                    ) : !isActive ? (
+                      // Not active, not completed — show real text blurred
+                      <span className="sub-cloze-blurred">
+                        {words.map((word, wi) => (
+                          <span key={wi} className="cloze-word cloze-shadow-text">{word}{' '}</span>
+                        ))}
+                      </span>
                     ) : (
+                      // Active row — show cloze inputs
                       <>{words.map((word, wi) => {
                         const isBlank = blanks.has(wi);
                         const result = subResults[wi];
@@ -490,11 +498,8 @@ export default function PodcastEpisodePage() {
                         if (allBlanksCorrect || isPeeking) {
                           return <span key={wi} className={`cloze-word ${isPeeking ? 'cloze-peek' : 'cloze-correct'}`}>{word}{' '}</span>;
                         }
+                        // Non-blank word in active row — show as ■ squares
                         if (!isBlank) {
-                          return <span key={wi} className="cloze-word cloze-square-box">{cleanWord.replace(/./g, '■')}{punct}{' '}</span>;
-                        }
-                        if (!isActive) {
-                          if (result === 'correct') return <span key={wi} className="cloze-word cloze-correct">{word}{' '}</span>;
                           return <span key={wi} className="cloze-word cloze-square-box">{cleanWord.replace(/./g, '■')}{punct}{' '}</span>;
                         }
                         if (result === 'correct') {
@@ -516,7 +521,7 @@ export default function PodcastEpisodePage() {
                               onKeyDown={e => handleBlankKeyDown(e, i, wi)}
                               maxLength={cleanWord.length}
                               placeholder={'_'.repeat(cleanWord.length)}
-                              style={{ width: `${Math.max(cleanWord.length * 0.65, 2)}em` }}
+                              style={{ width: `${Math.max(cleanWord.length * 0.85, 3)}em` }}
                             />
                             {punct && <span className="cloze-punct">{punct}</span>}
                             {' '}

@@ -592,7 +592,7 @@ export default function LessonPage() {
               {/* Subtitle content — diktat cloze */}
               <div className="sub-cloze">
 
-                {/* Completed shows green text, others show ■ boxes + cloze inputs */}
+                {/* Completed shows green text, not-yet-reached shows blurred text, active shows inputs */}
                 {
                   <>
                     {isCompleted ? (
@@ -600,8 +600,15 @@ export default function LessonPage() {
                       <>{words.map((word, wi) => (
                         <span key={wi} className="cloze-word cloze-correct">{word}{' '}</span>
                       ))}</>
+                    ) : !isActive ? (
+                      // Not active, not completed — show real text blurred
+                      <span className="sub-cloze-blurred">
+                        {words.map((word, wi) => (
+                          <span key={wi} className="cloze-word cloze-shadow-text">{word}{' '}</span>
+                        ))}
+                      </span>
                     ) : (
-                      // Not completed — show cloze
+                      // Active row — show cloze inputs
                       <>{words.map((word, wi) => {
                         const isBlank = blanks.has(wi);
                         const result = subResults[wi];
@@ -614,7 +621,7 @@ export default function LessonPage() {
                           return <span key={wi} className={`cloze-word ${isPeeking ? 'cloze-peek' : 'cloze-correct'}`}>{word}{' '}</span>;
                         }
 
-                        // Non-blank — show as ■ squares
+                        // Non-blank word in active row — show as ■ squares
                         if (!isBlank) {
                           return (
                             <span key={wi} className="cloze-word cloze-square-box">
@@ -623,19 +630,7 @@ export default function LessonPage() {
                           );
                         }
 
-                        // Blank but NOT active row — show ■ squares
-                        if (!isActive) {
-                          if (result === 'correct') {
-                            return <span key={wi} className="cloze-word cloze-correct">{word}{' '}</span>;
-                          }
-                          return (
-                            <span key={wi} className="cloze-word cloze-square-box">
-                              {cleanWord.replace(/./g, '■')}{punct}{' '}
-                            </span>
-                          );
-                        }
-
-                        // Active row blank — if already correct, show as revealed text
+                        // Already correct blank
                         if (result === 'correct') {
                           return <span key={wi} className="cloze-word cloze-correct">{word}{' '}</span>;
                         }
@@ -657,7 +652,7 @@ export default function LessonPage() {
                               autoFocus={wi === Array.from(blanks).sort((a, b) => a - b)[0]}
                               maxLength={cleanWord.length}
                               placeholder={'_'.repeat(cleanWord.length)}
-                              style={{ width: `${Math.max(cleanWord.length * 0.65, 2)}em` }}
+                              style={{ width: `${Math.max(cleanWord.length * 0.85, 3)}em` }}
                             />
                             {punct && <span className="cloze-punct">{punct}</span>}
                             {' '}

@@ -333,20 +333,20 @@ a:hover { @apply text-accent-hover; }
 .cloze-correct { @apply text-success; }
 .cloze-blank-wrap { @apply inline; }
 .cloze-input-wrap {
-  @apply inline-flex items-center relative cursor-text mx-0.5 align-baseline transition-all duration-200;
+  @apply inline-flex items-center relative cursor-text mx-1 align-baseline transition-all duration-200;
 }
 .cloze-input {
-  @apply bg-bg-input text-text-primary text-sm font-semibold font-sans py-0.5 px-1.5 rounded outline-none transition-all duration-200;
+  @apply bg-bg-input text-text-primary text-base font-semibold font-sans py-1.5 px-3 rounded-lg outline-none transition-all duration-200;
   border: 1.5px solid var(--color-border);
   border-bottom-width: 2.5px;
 }
 .cloze-input::placeholder {
-  @apply text-text-muted opacity-30 tracking-wider;
+  @apply text-text-muted opacity-25 tracking-widest;
 }
 .cloze-input:focus {
   @apply border-accent;
   background: rgba(168,85,247,0.08);
-  box-shadow: 0 0 8px rgba(168,85,247,0.3);
+  box-shadow: 0 0 10px rgba(168,85,247,0.3);
   border-bottom-color: var(--color-accent);
 }
 .cloze-input-error .cloze-input {

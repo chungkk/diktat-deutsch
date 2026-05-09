@@ -500,26 +500,24 @@ export default function PodcastEpisodePage() {
                         if (result === 'correct') {
                           return <span key={wi} className="cloze-word cloze-correct">{word}{' '}</span>;
                         }
-
-                        const chars = cleanWord.split('');
+                        // Active row blank — single input box per word
                         return (
-                          <span key={wi} className="cloze-chars-wrap" onClick={(e) => { e.stopPropagation(); blankRefs.current[`${i}-${wi}`]?.focus(); }}>
+                          <span
+                            key={wi}
+                            className={`cloze-input-wrap ${result === 'incorrect' ? 'cloze-input-error' : ''}`}
+                            onClick={(e) => { e.stopPropagation(); blankRefs.current[`${i}-${wi}`]?.focus(); }}
+                          >
                             <input
                               ref={el => { blankRefs.current[`${i}-${wi}`] = el; }}
                               type="text"
-                              className="cloze-hidden-input"
+                              className="cloze-input"
                               value={userVal}
                               onChange={e => handleBlankChange(i, wi, e.target.value)}
                               onKeyDown={e => handleBlankKeyDown(e, i, wi)}
                               maxLength={cleanWord.length}
+                              placeholder={'_'.repeat(cleanWord.length)}
+                              style={{ width: `${Math.max(cleanWord.length * 0.65, 2)}em` }}
                             />
-                            {chars.map((ch, ci) => {
-                              const typed = userVal[ci];
-                              let cls = 'cloze-char';
-                              if (typed) cls += typed.toLowerCase() === ch.toLowerCase() ? ' cloze-char-correct' : ' cloze-char-incorrect';
-                              else cls += ' cloze-char-empty';
-                              return <span key={ci} className={cls}>{typed || '■'}</span>;
-                            })}
                             {punct && <span className="cloze-punct">{punct}</span>}
                             {' '}
                           </span>

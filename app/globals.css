@@ -332,28 +332,28 @@ a:hover { @apply text-accent-hover; }
 .cloze-word { @apply inline transition-colors duration-300 font-medium; }
 .cloze-correct { @apply text-success; }
 .cloze-blank-wrap { @apply inline; }
-.cloze-chars-wrap {
-  @apply inline-flex items-center gap-0.5 relative cursor-text bg-bg-input rounded py-0.5 px-1.5 mx-0.5 min-w-[2em] align-baseline transition-all duration-200;
-  border: 1.5px dashed var(--color-border);
+.cloze-input-wrap {
+  @apply inline-flex items-center relative cursor-text mx-0.5 align-baseline transition-all duration-200;
 }
-.cloze-chars-wrap:focus-within {
-  @apply border-solid border-accent;
+.cloze-input {
+  @apply bg-bg-input text-text-primary text-sm font-semibold font-sans py-0.5 px-1.5 rounded outline-none transition-all duration-200;
+  border: 1.5px solid var(--color-border);
+  border-bottom-width: 2.5px;
+}
+.cloze-input::placeholder {
+  @apply text-text-muted opacity-30 tracking-wider;
+}
+.cloze-input:focus {
+  @apply border-accent;
   background: rgba(168,85,247,0.08);
   box-shadow: 0 0 8px rgba(168,85,247,0.3);
+  border-bottom-color: var(--color-accent);
 }
-.cloze-chars-done {
-  @apply border-solid border-success;
-  background: rgba(52,211,153,0.1);
+.cloze-input-error .cloze-input {
+  @apply border-error text-error;
+  background: rgba(248,113,113,0.08);
+  box-shadow: 0 0 6px rgba(248,113,113,0.2);
 }
-.cloze-hidden-input {
-  @apply absolute opacity-0 w-full h-full top-0 left-0 cursor-text text-sm;
-}
-.cloze-char {
-  @apply inline-block min-w-[0.55em] text-center text-sm font-semibold font-sans transition-colors duration-150;
-}
-.cloze-char-empty { @apply text-text-muted opacity-35; }
-.cloze-char-correct { @apply text-success font-semibold; }
-.cloze-char-incorrect { @apply text-error font-semibold; }
 .cloze-punct { @apply text-text-muted opacity-40 ml-px; }
 
 @keyframes shake {

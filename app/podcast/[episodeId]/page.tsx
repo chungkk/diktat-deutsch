@@ -54,9 +54,7 @@ export default function PodcastEpisodePage() {
   const [loadError, setLoadError] = useState('');
   const [blankMode, setBlankMode] = useState<50 | 100>(100);
   const [peekingIndex, setPeekingIndex] = useState<number | null>(null);
-  const [lessonPhase, setLessonPhase] = useState<'shadowing' | 'diktat'>('shadowing');
-  const [shadowTextHidden, setShadowTextHidden] = useState(false);
-  const [highestVisitedIndex, setHighestVisitedIndex] = useState(0);
+
   const [currentTime, setCurrentTime] = useState(0);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -187,42 +185,20 @@ export default function PodcastEpisodePage() {
     }
   }, []);
 
-  useEffect(() => {
-    if (lessonPhase === 'shadowing' && currentIndex > highestVisitedIndex) {
-      setHighestVisitedIndex(currentIndex);
-    }
-  }, [currentIndex, lessonPhase, highestVisitedIndex]);
 
-  const hasCompletedShadowing = episode ? highestVisitedIndex >= episode.subtitles.length - 1 : false;
-
-  const switchToDiktat = useCallback(() => {
-    setLessonPhase('diktat');
-    setCurrentIndex(0);
-    setShadowTextHidden(false);
-    setTimeout(() => {
-      if (subTokens[0]) {
-        const firstBlank = Array.from(subTokens[0].blanks).sort((a, b) => a - b)[0];
-        if (firstBlank !== undefined) {
-          blankRefs.current[`0-${firstBlank}`]?.focus();
-        }
-      }
-    }, 200);
-  }, [subTokens]);
 
   const selectSubtitle = useCallback((index: number) => {
     setCurrentIndex(index);
     seekToSubtitle(index);
-    if (lessonPhase === 'diktat') {
-      setTimeout(() => {
-        if (subTokens[index]) {
-          const firstBlank = Array.from(subTokens[index].blanks).sort((a, b) => a - b)[0];
-          if (firstBlank !== undefined) {
-            blankRefs.current[`${index}-${firstBlank}`]?.focus();
-          }
+    setTimeout(() => {
+      if (subTokens[index]) {
+        const firstBlank = Array.from(subTokens[index].blanks).sort((a, b) => a - b)[0];
+        if (firstBlank !== undefined) {
+          blankRefs.current[`${index}-${firstBlank}`]?.focus();
         }
-      }, 100);
-    }
-  }, [seekToSubtitle, lessonPhase, subTokens]);
+      }
+    }, 100);
+  }, [seekToSubtitle, subTokens]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -434,60 +410,21 @@ export default function PodcastEpisodePage() {
             </div>
           </div>
 
-          {/* Workflow indicator */}
-          <div className="workflow-indicator">
-            <div className={`workflow-step ${lessonPhase === 'shadowing' ? 'workflow-step-active' : 'workflow-step-done'}`}>
-              <span className="workflow-step-number">1</span>
-              <span className="workflow-step-label">👤 Shadowing</span>
-              <span className="workflow-step-desc">Nghe + đọc theo</span>
-            </div>
-            <span className="workflow-arrow">→</span>
-            <div className={`workflow-step ${lessonPhase === 'diktat' ? 'workflow-step-active' : ''}`}>
-              <span className="workflow-step-number">2</span>
-              <span className="workflow-step-label">✍️ Diktat</span>
-              <span className="workflow-step-desc">Nghe + chép lại</span>
+          {/* Difficulty toggle */}
+          <div className="mode-toggle">
+            <span className="mode-label">Schwierigkeit</span>
+            <div className="mode-buttons">
+              <button className={`mode-btn ${blankMode === 50 ? 'mode-btn-active' : ''}`} onClick={() => setBlankMode(50)}>50% Lücken</button>
+              <button className={`mode-btn ${blankMode === 100 ? 'mode-btn-active' : ''}`} onClick={() => setBlankMode(100)}>100% Diktat</button>
             </div>
           </div>
-
-          {/* Shadowing controls */}
-          {lessonPhase === 'shadowing' && (
-            <>
-              <button
-                className={`shadowing-toggle ${shadowTextHidden ? 'shadowing-toggle-active' : ''}`}
-                onClick={() => setShadowTextHidden(prev => !prev)}
-              >
-                <span className="shadowing-toggle-icon">{shadowTextHidden ? '👁' : '🙈'}</span>
-                {shadowTextHidden ? 'Text scharf zeigen' : 'Text verwischen'}
-              </button>
-              {hasCompletedShadowing && (
-                <button className="btn btn-primary btn-block switch-diktat-btn" onClick={switchToDiktat}>
-                  ✍️ Jetzt Diktat starten
-                </button>
-              )}
-              <div className="shadowing-progress-info">
-                <span className="text-text-muted text-xs">
-                  Shadowing: {Math.min(highestVisitedIndex + 1, totalSubs)} / {totalSubs} gehört
-                </span>
-              </div>
-            </>
-          )}
-
-          {/* Diktat mode toggle */}
-          {lessonPhase === 'diktat' && (
-            <div className="mode-toggle">
-              <span className="mode-label">Schwierigkeit</span>
-              <div className="mode-buttons">
-                <button className={`mode-btn ${blankMode === 50 ? 'mode-btn-active' : ''}`} onClick={() => setBlankMode(50)}>50% Lücken</button>
-                <button className={`mode-btn ${blankMode === 100 ? 'mode-btn-active' : ''}`} onClick={() => setBlankMode(100)}>100% Diktat</button>
-              </div>
-            </div>
-          )}
 
           <div className="lesson-shortcuts">
             <kbd>Space</kbd> Wiederholen
             <kbd>←</kbd> -2s
             <kbd>→</kbd> +2s
             <kbd>↑↓</kbd> Chuyển câu
+            <kbd>Tab</kbd> Zwischen Feldern
           </div>
         </div>
       </div>
@@ -509,7 +446,7 @@ export default function PodcastEpisodePage() {
             <div
               key={i}
               id={`pod-sub-${i}`}
-              className={`sub-row ${isActive ? 'sub-active' : ''} ${isCompleted ? 'sub-completed' : ''} ${isActive && lessonPhase === 'shadowing' ? 'sub-shadow-phase' : ''}`}
+              className={`sub-row ${isActive ? 'sub-active' : ''} ${isCompleted ? 'sub-completed' : ''}`}
               onClick={() => selectSubtitle(i)}
             >
               <div className="sub-row-header">
@@ -518,11 +455,10 @@ export default function PodcastEpisodePage() {
                 <span className="sub-time">{formatTime(sub.start)}</span>
                 {sub.speaker && <span className="podcast-speaker-badge">{sub.speaker === 'SPEAKER_1' ? '🎤 Anna' : sub.speaker === 'SPEAKER_2' ? '🦦 Otti' : sub.speaker === 'SPEAKER_3' ? '🎵' : '👧'}</span>}
 
-                {isActive && lessonPhase === 'shadowing' && <span className="sub-phase-badge sub-phase-shadow">👤 Shadow</span>}
-                {isActive && lessonPhase === 'diktat' && !isCompleted && <span className="sub-phase-badge sub-phase-diktat">✍️ Diktat</span>}
+                {isActive && !isCompleted && <span className="sub-phase-badge sub-phase-diktat">✍️ Diktat</span>}
                 {isCompleted && <span className="sub-check">✓</span>}
 
-                {isActive && lessonPhase === 'diktat' && !isCompleted && (
+                {isActive && !isCompleted && (
                   <button
                     className={`sub-action-btn sub-action-hint ${peekingIndex === i ? 'sub-action-peeking' : ''}`}
                     onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); startPeek(i); }}
@@ -535,16 +471,9 @@ export default function PodcastEpisodePage() {
                 )}
               </div>
 
-              <div className={`sub-cloze ${lessonPhase === 'shadowing' && shadowTextHidden ? 'sub-cloze-blurred' : ''}`}>
-                {/* SHADOWING */}
-                {lessonPhase === 'shadowing' && (
-                  <>{words.map((word, wi) => (
-                    <span key={wi} className="cloze-word cloze-shadow-text">{word}{' '}</span>
-                  ))}</>
-                )}
+              <div className="sub-cloze">
 
-                {/* DIKTAT */}
-                {lessonPhase === 'diktat' && (
+                {
                   <>
                     {isCompleted ? (
                       <>{words.map((word, wi) => (
@@ -597,8 +526,7 @@ export default function PodcastEpisodePage() {
                         );
                       })}</>
                     )}
-                  </>
-                )}
+                  </>}
               </div>
             </div>
           );

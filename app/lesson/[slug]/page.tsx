@@ -59,12 +59,7 @@ export default function LessonPage() {
   const [loading, setLoading] = useState(true);
   const [blankMode, setBlankMode] = useState<50 | 100>(100);
   const [peekingIndex, setPeekingIndex] = useState<number | null>(null);
-  // Global lesson phase: shadowing first, then diktat
-  const [lessonPhase, setLessonPhase] = useState<'shadowing' | 'diktat'>('shadowing');
-  // Hide text toggle during shadowing
-  const [shadowTextHidden, setShadowTextHidden] = useState(false);
-  // Track highest visited subtitle index during shadowing
-  const [highestVisitedIndex, setHighestVisitedIndex] = useState(0);
+
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const blankRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -270,48 +265,22 @@ export default function LessonPage() {
     }
   }, [lesson?.videoType, ytCommand]);
 
-  // Track highest visited subtitle during shadowing
-  useEffect(() => {
-    if (lessonPhase === 'shadowing' && currentIndex > highestVisitedIndex) {
-      setHighestVisitedIndex(currentIndex);
-    }
-  }, [currentIndex, lessonPhase, highestVisitedIndex]);
 
-  // Check if user has completed one full shadowing pass
-  const hasCompletedShadowing = lesson ? highestVisitedIndex >= lesson.subtitles.length - 1 : false;
-
-  // Switch global phase to diktat
-  const switchToDiktat = useCallback(() => {
-    setLessonPhase('diktat');
-    setCurrentIndex(0);
-    setShadowTextHidden(false);
-    // Focus first blank of first subtitle
-    setTimeout(() => {
-      if (subTokens[0]) {
-        const firstBlank = Array.from(subTokens[0].blanks).sort((a, b) => a - b)[0];
-        if (firstBlank !== undefined) {
-          blankRefs.current[`0-${firstBlank}`]?.focus();
-        }
-      }
-    }, 200);
-  }, [subTokens]);
 
   // Select a subtitle row
   const selectSubtitle = useCallback((index: number) => {
     setCurrentIndex(index);
     seekToSubtitle(index);
-    // In diktat phase, focus first blank
-    if (lessonPhase === 'diktat') {
-      setTimeout(() => {
-        if (subTokens[index]) {
-          const firstBlank = Array.from(subTokens[index].blanks).sort((a, b) => a - b)[0];
-          if (firstBlank !== undefined) {
-            blankRefs.current[`${index}-${firstBlank}`]?.focus();
-          }
+    // Focus first blank
+    setTimeout(() => {
+      if (subTokens[index]) {
+        const firstBlank = Array.from(subTokens[index].blanks).sort((a, b) => a - b)[0];
+        if (firstBlank !== undefined) {
+          blankRefs.current[`${index}-${firstBlank}`]?.focus();
         }
-      }, 100);
-    }
-  }, [seekToSubtitle, lessonPhase, subTokens]);
+      }
+    }, 100);
+  }, [seekToSubtitle, subTokens]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -539,83 +508,31 @@ export default function LessonPage() {
             </div>
           </div>
 
-          {/* Workflow phase indicator */}
-          <div className="workflow-indicator">
-            <div className={`workflow-step ${lessonPhase === 'shadowing' ? 'workflow-step-active' : 'workflow-step-done'}`}>
-              <span className="workflow-step-number">1</span>
-              <span className="workflow-step-label">👤 Shadowing</span>
-              <span className="workflow-step-desc">Nghe + đọc theo</span>
-            </div>
-            <span className="workflow-arrow">→</span>
-            <div className={`workflow-step ${lessonPhase === 'diktat' ? 'workflow-step-active' : ''}`}>
-              <span className="workflow-step-number">2</span>
-              <span className="workflow-step-label">✍️ Diktat</span>
-              <span className="workflow-step-desc">Nghe + chép lại</span>
+          {/* Difficulty toggle */}
+          <div className="mode-toggle">
+            <span className="mode-label">Schwierigkeit</span>
+            <div className="mode-buttons">
+              <button
+                className={`mode-btn ${blankMode === 50 ? 'mode-btn-active' : ''}`}
+                onClick={() => setBlankMode(50)}
+              >
+                50% Lücken
+              </button>
+              <button
+                className={`mode-btn ${blankMode === 100 ? 'mode-btn-active' : ''}`}
+                onClick={() => setBlankMode(100)}
+              >
+                100% Diktat
+              </button>
             </div>
           </div>
-
-          {/* Shadowing controls */}
-          {lessonPhase === 'shadowing' && (
-            <>
-              {/* Toggle text visibility */}
-              <button
-                className={`shadowing-toggle ${shadowTextHidden ? 'shadowing-toggle-active' : ''}`}
-                onClick={() => setShadowTextHidden(prev => !prev)}
-              >
-                <span className="shadowing-toggle-icon">{shadowTextHidden ? '👁' : '🙈'}</span>
-                {shadowTextHidden ? 'Text scharf zeigen' : 'Text verwischen'}
-              </button>
-
-              {/* Switch to diktat after completing shadowing */}
-              {hasCompletedShadowing && (
-                <button
-                  className="btn btn-primary btn-block switch-diktat-btn"
-                  onClick={switchToDiktat}
-                >
-                  ✍️ Jetzt Diktat starten
-                </button>
-              )}
-
-              <div className="shadowing-progress-info">
-                <span className="text-text-muted text-xs">
-                  Shadowing: {Math.min(highestVisitedIndex + 1, totalSubs)} / {totalSubs} gehört
-                </span>
-                {!hasCompletedShadowing && (
-                  <span className="text-text-muted text-xs" style={{ opacity: 0.6 }}>
-                    Alle Sätze anhören um Diktat freizuschalten
-                  </span>
-                )}
-              </div>
-            </>
-          )}
-
-          {/* Difficulty toggle — only in diktat phase */}
-          {lessonPhase === 'diktat' && (
-            <div className="mode-toggle">
-              <span className="mode-label">Schwierigkeit</span>
-              <div className="mode-buttons">
-                <button
-                  className={`mode-btn ${blankMode === 50 ? 'mode-btn-active' : ''}`}
-                  onClick={() => setBlankMode(50)}
-                >
-                  50% Lücken
-                </button>
-                <button
-                  className={`mode-btn ${blankMode === 100 ? 'mode-btn-active' : ''}`}
-                  onClick={() => setBlankMode(100)}
-                >
-                  100% Diktat
-                </button>
-              </div>
-            </div>
-          )}
 
           <div className="lesson-shortcuts">
             <kbd>Space</kbd> Wiederholen
             <kbd>←</kbd> -2s
             <kbd>→</kbd> +2s
             <kbd>↑↓</kbd> Chuyển câu
-            {lessonPhase === 'diktat' && <><kbd>Tab</kbd> Zwischen Feldern</>}
+            <kbd>Tab</kbd> Zwischen Feldern
           </div>
         </div>
       </div>
@@ -637,7 +554,7 @@ export default function LessonPage() {
             <div
               key={i}
               id={`sub-${i}`}
-              className={`sub-row ${isActive ? 'sub-active' : ''} ${isCompleted ? 'sub-completed' : ''} ${isActive && lessonPhase === 'shadowing' ? 'sub-shadow-phase' : ''}`}
+              className={`sub-row ${isActive ? 'sub-active' : ''} ${isCompleted ? 'sub-completed' : ''}`}
               onClick={() => selectSubtitle(i)}
             >
               <div className="sub-row-header">
@@ -651,17 +568,13 @@ export default function LessonPage() {
                 </button>
                 <span className="sub-time">{formatTime(sub.start)}</span>
 
-                {/* Phase badge */}
-                {isActive && lessonPhase === 'shadowing' && (
-                  <span className="sub-phase-badge sub-phase-shadow">👤 Shadow</span>
-                )}
-                {isActive && lessonPhase === 'diktat' && !isCompleted && (
+                {isActive && !isCompleted && (
                   <span className="sub-phase-badge sub-phase-diktat">✍️ Diktat</span>
                 )}
                 {isCompleted && <span className="sub-check">✓</span>}
 
-                {/* Peek button in diktat phase */}
-                {isActive && lessonPhase === 'diktat' && !isCompleted && (
+                {/* Peek button */}
+                {isActive && !isCompleted && (
                   <button
                     className={`sub-action-btn sub-action-hint ${peekingIndex === i ? 'sub-action-peeking' : ''}`}
                     onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); startPeek(i); }}
@@ -676,17 +589,11 @@ export default function LessonPage() {
                 )}
               </div>
 
-              {/* Subtitle content — depends on global phase */}
-              <div className={`sub-cloze ${lessonPhase === 'shadowing' && shadowTextHidden ? 'sub-cloze-blurred' : ''}`}>
-                {/* SHADOWING PHASE: show full text (blurred or clear) */}
-                {lessonPhase === 'shadowing' && (
-                  <>{words.map((word, wi) => (
-                    <span key={wi} className="cloze-word cloze-shadow-text">{word}{' '}</span>
-                  ))}</>
-                )}
+              {/* Subtitle content — diktat cloze */}
+              <div className="sub-cloze">
 
-                {/* DIKTAT PHASE: completed shows green text, others show ■ boxes + cloze inputs */}
-                {lessonPhase === 'diktat' && (
+                {/* Completed shows green text, others show ■ boxes + cloze inputs */}
+                {
                   <>
                     {isCompleted ? (
                       // Completed — show full text in green
@@ -767,8 +674,7 @@ export default function LessonPage() {
                         );
                       })}</>
                     )}
-                  </>
-                )}
+                  </>}
               </div>
             </div>
           );

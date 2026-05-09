@@ -563,7 +563,7 @@ export default function LessonPage() {
                 onClick={() => setShadowTextHidden(prev => !prev)}
               >
                 <span className="shadowing-toggle-icon">{shadowTextHidden ? '👁' : '🙈'}</span>
-                {shadowTextHidden ? 'Text anzeigen' : 'Text ausblenden'}
+                {shadowTextHidden ? 'Text scharf zeigen' : 'Text verwischen'}
               </button>
 
               {/* Switch to diktat after completing shadowing */}
@@ -677,24 +677,12 @@ export default function LessonPage() {
               </div>
 
               {/* Subtitle content — depends on global phase */}
-              <div className={`sub-cloze ${lessonPhase === 'shadowing' && shadowTextHidden ? 'sub-cloze-hidden' : ''}`}>
-                {/* SHADOWING PHASE: show full text (or hidden) */}
+              <div className={`sub-cloze ${lessonPhase === 'shadowing' && shadowTextHidden ? 'sub-cloze-blurred' : ''}`}>
+                {/* SHADOWING PHASE: show full text (blurred or clear) */}
                 {lessonPhase === 'shadowing' && (
-                  <>
-                    {shadowTextHidden ? (
-                      // Square boxes when text is hidden
-                      <>{words.map((word, wi) => (
-                        <span key={wi} className="cloze-word cloze-square-box">
-                          {word.replace(/[.,!?;:'"„"»«]/g, '').replace(/./g, '■')}{word.slice(word.replace(/[.,!?;:'"„"»«]/g, '').length)}{' '}
-                        </span>
-                      ))}</>
-                    ) : (
-                      // Full readable text
-                      <>{words.map((word, wi) => (
-                        <span key={wi} className="cloze-word cloze-shadow-text">{word}{' '}</span>
-                      ))}</>
-                    )}
-                  </>
+                  <>{words.map((word, wi) => (
+                    <span key={wi} className="cloze-word cloze-shadow-text">{word}{' '}</span>
+                  ))}</>
                 )}
 
                 {/* DIKTAT PHASE: completed shows green text, others show ■ boxes + cloze inputs */}

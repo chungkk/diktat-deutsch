@@ -278,10 +278,7 @@ a:hover { @apply text-accent-hover; }
   opacity: 0.45;
 }
 
-/* ═══ TEXT HIDDEN STATE ═══ */
-.sub-cloze-hidden {
-  @apply opacity-80;
-}
+/* (removed: sub-cloze-hidden — replaced by sub-cloze-blurred) */
 
 /* ═══ WORKFLOW STEP STATES ═══ */
 .workflow-step-active .workflow-step-number {
@@ -325,8 +322,13 @@ a:hover { @apply text-accent-hover; }
 
 /* ═══ CLOZE ═══ */
 .sub-cloze { @apply py-2 pb-1 pl-[38px] leading-[2.2] text-sm font-medium transition-all duration-300; }
-.sub-cloze-blurred { @apply blur-[5px] select-none cursor-pointer; }
-.sub-cloze-blurred:hover { @apply blur-[3px]; }
+.sub-cloze-blurred {
+  @apply blur-[5px] select-none cursor-pointer;
+  transition: filter 0.3s ease;
+}
+.sub-cloze-blurred:hover {
+  @apply blur-[3px];
+}
 .cloze-word { @apply inline transition-colors duration-300 font-medium; }
 .cloze-correct { @apply text-success; }
 .cloze-blank-wrap { @apply inline; }

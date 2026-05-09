@@ -457,7 +457,7 @@ export default function PodcastEpisodePage() {
                 onClick={() => setShadowTextHidden(prev => !prev)}
               >
                 <span className="shadowing-toggle-icon">{shadowTextHidden ? '👁' : '🙈'}</span>
-                {shadowTextHidden ? 'Text anzeigen' : 'Text ausblenden'}
+                {shadowTextHidden ? 'Text scharf zeigen' : 'Text verwischen'}
               </button>
               {hasCompletedShadowing && (
                 <button className="btn btn-primary btn-block switch-diktat-btn" onClick={switchToDiktat}>
@@ -535,22 +535,12 @@ export default function PodcastEpisodePage() {
                 )}
               </div>
 
-              <div className={`sub-cloze ${lessonPhase === 'shadowing' && shadowTextHidden ? 'sub-cloze-hidden' : ''}`}>
+              <div className={`sub-cloze ${lessonPhase === 'shadowing' && shadowTextHidden ? 'sub-cloze-blurred' : ''}`}>
                 {/* SHADOWING */}
                 {lessonPhase === 'shadowing' && (
-                  <>
-                    {shadowTextHidden ? (
-                      <>{words.map((word, wi) => (
-                        <span key={wi} className="cloze-word cloze-square-box">
-                          {word.replace(/[.,!?;:'"„"»«]/g, '').replace(/./g, '■')}{word.slice(word.replace(/[.,!?;:'"„"»«]/g, '').length)}{' '}
-                        </span>
-                      ))}</>
-                    ) : (
-                      <>{words.map((word, wi) => (
-                        <span key={wi} className="cloze-word cloze-shadow-text">{word}{' '}</span>
-                      ))}</>
-                    )}
-                  </>
+                  <>{words.map((word, wi) => (
+                    <span key={wi} className="cloze-word cloze-shadow-text">{word}{' '}</span>
+                  ))}</>
                 )}
 
                 {/* DIKTAT */}

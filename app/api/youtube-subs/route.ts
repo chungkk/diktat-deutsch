@@ -77,9 +77,16 @@ function runYtDlp(args: string[]): Promise<{ stdout: string; stderr: string }> {
     process.env.PATH,
   ].join(':');
 
+  // Force IPv4 and set YouTube player client to avoid PO Token hang
+  const fullArgs = [
+    '--force-ipv4',
+    '--extractor-args', 'youtube:player_client=default',
+    ...args,
+  ];
+
   return new Promise((resolve, reject) => {
-    execFile('yt-dlp', args, {
-      timeout: 30_000,
+    execFile('yt-dlp', fullArgs, {
+      timeout: 60_000,
       maxBuffer: 5 * 1024 * 1024,
       env: { ...process.env, PATH: envPath },
     }, (err, stdout, stderr) => {

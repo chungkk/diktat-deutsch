@@ -693,6 +693,34 @@ a:hover { @apply text-accent-hover; }
   .navbar-links { @apply gap-3; }
   .navbar-links a, .navbar-links button { @apply text-xs; }
   .navbar-user { @apply text-[0.65rem] px-3 py-1; }
+
+  /* Lesson controls compact */
+  .lesson-left { @apply p-4 pb-3; }
+  .lesson-split-title { @apply text-base mb-1; }
+  .lesson-split-meta { @apply text-[0.7rem] gap-2 mb-3; }
+  .lesson-progress-section { @apply py-2.5 px-3 mb-3; }
+  .lesson-progress-header { @apply text-[0.7rem] mb-1.5; }
+
+  /* Workflow indicator compact */
+  .workflow-indicator { @apply flex-row gap-2 py-2 px-3 mb-3; }
+  .workflow-step { @apply flex-row gap-1.5 items-center; }
+  .workflow-step-number { @apply w-4 h-4 text-[0.55rem] mb-0; }
+  .workflow-step-label { @apply text-[0.7rem]; }
+  .workflow-step-desc { @apply hidden; }
+  .workflow-arrow { @apply text-sm mt-0; }
+
+  /* Shadowing toggle compact */
+  .shadowing-toggle { @apply py-2 px-3 mb-3 text-xs gap-1.5; }
+  .shadowing-toggle-icon { @apply text-sm; }
+  .shadowing-progress-info { @apply py-1.5 px-2.5 mb-3; }
+
+  /* Shortcuts compact */
+  .lesson-shortcuts { @apply text-[0.65rem] gap-1.5 mb-2; }
+  .lesson-shortcuts kbd { @apply py-0 px-1.5 text-[0.6rem]; }
+
+  /* Mode toggle compact */
+  .mode-toggle { @apply mb-3; }
+  .mode-btn { @apply py-1.5 px-2 text-[0.7rem]; }
 }
 @media (max-width: 480px) {
   .container { @apply px-4; }

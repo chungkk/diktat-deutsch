@@ -238,7 +238,30 @@ export default function LessonScreen({ navigation, route }: LessonScreenProps) {
 
   return (
     <View style={styles.container}>
-      {/* YouTube Player */}
+      {/* Header bar — always on top */}
+      <View style={styles.controlsBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={22} color={Colors.textPrimary} />
+        </TouchableOpacity>
+
+        <View style={styles.controlsInfo}>
+          <Text style={styles.controlsTitle} numberOfLines={1}>{lesson.title}</Text>
+          <View style={styles.controlsProgressRow}>
+            <View style={[styles.levelDot, { backgroundColor: levelColor }]} />
+            <Text style={styles.controlsProgressText}>
+              {completedIndices.length}/{totalSubs} • {pct}%
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity style={styles.phaseToggle} onPress={togglePhase}>
+          <Text style={styles.phaseToggleText}>
+            {phase === 'shadowing' ? '🎧' : '✍️'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* YouTube Player — below header */}
       {lesson.videoType === 'youtube' && lesson.youtubeId && (
         <View style={styles.videoContainer}>
           <YoutubePlayer
@@ -261,29 +284,6 @@ export default function LessonScreen({ navigation, route }: LessonScreenProps) {
           />
         </View>
       )}
-
-      {/* Controls bar */}
-      <View style={styles.controlsBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={22} color={Colors.textPrimary} />
-        </TouchableOpacity>
-
-        <View style={styles.controlsInfo}>
-          <Text style={styles.controlsTitle} numberOfLines={1}>{lesson.title}</Text>
-          <View style={styles.controlsProgressRow}>
-            <View style={[styles.levelDot, { backgroundColor: levelColor }]} />
-            <Text style={styles.controlsProgressText}>
-              {completedIndices.length}/{totalSubs} • {pct}%
-            </Text>
-          </View>
-        </View>
-
-        <TouchableOpacity style={styles.phaseToggle} onPress={togglePhase}>
-          <Text style={styles.phaseToggleText}>
-            {phase === 'shadowing' ? '🎧' : '✍️'}
-          </Text>
-        </TouchableOpacity>
-      </View>
 
       {/* Playback controls */}
       <View style={styles.playbackControls}>
@@ -377,7 +377,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingTop: 56,
+    paddingBottom: Spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     gap: Spacing.sm,

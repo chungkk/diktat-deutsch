@@ -9,9 +9,8 @@ import {
   Alert,
   Dimensions,
 } from 'react-native';
-import { Audio, AVPlaybackStatus } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
-import { WebView } from 'react-native-webview';
+import YoutubePlayer, { YoutubeIframeRef } from 'react-native-youtube-iframe';
 import { Colors, Fonts, Spacing, Radius, LEVEL_COLORS } from '../theme/tokens';
 import { Subtitle, OfflineLesson, LessonProgress } from '../types';
 import { getOfflineLesson, getProgress, saveProgress } from '../services/storage';
@@ -41,13 +40,12 @@ export default function LessonScreen({ navigation, route }: LessonScreenProps) {
   const [completedIndices, setCompletedIndices] = useState<number[]>([]);
   const [phase, setPhase] = useState<'shadowing' | 'diktat'>('shadowing');
   const [isPlaying, setIsPlaying] = useState(false);
-  const [showText, setShowText] = useState(true); // toggle text visibility for shadowing
+  const [showText, setShowText] = useState(true);
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
 
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const playerRef = useRef<YoutubeIframeRef>(null);
   const flatListRef = useRef<FlatList>(null);
-  const webViewRef = useRef<WebView>(null);
-  const playbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoPauseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load lesson and progress
   useEffect(() => {
@@ -70,17 +68,13 @@ export default function LessonScreen({ navigation, route }: LessonScreenProps) {
     })();
 
     return () => {
-      // Cleanup audio
-      if (soundRef.current) {
-        soundRef.current.unloadAsync();
-      }
-      if (playbackTimer.current) {
-        clearTimeout(playbackTimer.current);
+      if (autoPauseTimer.current) {
+        clearTimeout(autoPauseTimer.current);
       }
     };
   }, [lessonId, navigation]);
 
-  // Save progress whenever it changes
+  // Save progress
   const persistProgress = useCallback(async (
     idx: number,
     completed: number[],
@@ -95,32 +89,7 @@ export default function LessonScreen({ navigation, route }: LessonScreenProps) {
     });
   }, [lessonId]);
 
-  // For YouTube: inject JS to control playback
-  const ytSeekAndPlay = useCallback((startTime: number, duration: number) => {
-    if (!webViewRef.current) return;
-    webViewRef.current.injectJavaScript(`
-      if (window.player) {
-        window.player.seekTo(${startTime}, true);
-        window.player.playVideo();
-        window.player.setPlaybackRate(${playbackSpeed});
-      }
-      true;
-    `);
-    setIsPlaying(true);
-
-    // Auto-pause after duration
-    if (playbackTimer.current) clearTimeout(playbackTimer.current);
-    playbackTimer.current = setTimeout(() => {
-      if (webViewRef.current) {
-        webViewRef.current.injectJavaScript(`
-          if (window.player) { window.player.pauseVideo(); }
-          true;
-        `);
-      }
-      setIsPlaying(false);
-    }, (duration + 0.3) * 1000 / playbackSpeed);
-  }, [playbackSpeed]);
-
+  // Play a specific subtitle segment
   const playSubtitle = useCallback((index: number) => {
     if (!lesson) return;
     const sub = lesson.subtitles[index];
@@ -128,8 +97,19 @@ export default function LessonScreen({ navigation, route }: LessonScreenProps) {
 
     setCurrentIndex(index);
 
-    if (lesson.videoType === 'youtube') {
-      ytSeekAndPlay(sub.start, sub.dur);
+    if (lesson.videoType === 'youtube' && playerRef.current) {
+      playerRef.current.seekTo(sub.start, true);
+      // Small delay to ensure seek completes before playing
+      setTimeout(() => {
+        setIsPlaying(true);
+      }, 100);
+
+      // Auto-pause after subtitle duration
+      if (autoPauseTimer.current) clearTimeout(autoPauseTimer.current);
+      const durationMs = ((sub.dur + 0.3) / playbackSpeed) * 1000;
+      autoPauseTimer.current = setTimeout(() => {
+        setIsPlaying(false);
+      }, durationMs);
     }
 
     // Scroll to the subtitle
@@ -140,7 +120,7 @@ export default function LessonScreen({ navigation, route }: LessonScreenProps) {
         viewPosition: 0.3,
       });
     }, 100);
-  }, [lesson, ytSeekAndPlay]);
+  }, [lesson, playbackSpeed]);
 
   const replayCurrent = useCallback(() => {
     playSubtitle(currentIndex);
@@ -178,13 +158,6 @@ export default function LessonScreen({ navigation, route }: LessonScreenProps) {
     const idx = speeds.indexOf(playbackSpeed);
     const next = speeds[(idx + 1) % speeds.length];
     setPlaybackSpeed(next);
-
-    if (webViewRef.current) {
-      webViewRef.current.injectJavaScript(`
-        if (window.player) { window.player.setPlaybackRate(${next}); }
-        true;
-      `);
-    }
   }, [playbackSpeed]);
 
   const togglePhase = useCallback(() => {
@@ -193,52 +166,18 @@ export default function LessonScreen({ navigation, route }: LessonScreenProps) {
     persistProgress(currentIndex, completedIndices, newPhase);
   }, [phase, currentIndex, completedIndices, persistProgress]);
 
-  // YouTube HTML player
-  const ytHtml = lesson?.youtubeId ? `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-      <style>
-        * { margin: 0; padding: 0; }
-        body { background: #000; overflow: hidden; }
-        #player { width: 100vw; height: 100vh; }
-      </style>
-    </head>
-    <body>
-      <div id="player"></div>
-      <script>
-        var tag = document.createElement('script');
-        tag.src = 'https://www.youtube.com/iframe_api';
-        document.head.appendChild(tag);
-        var player;
-        function onYouTubeIframeAPIReady() {
-          player = new YT.Player('player', {
-            videoId: '${lesson.youtubeId}',
-            playerVars: {
-              controls: 0,
-              modestbranding: 1,
-              rel: 0,
-              playsinline: 1,
-            },
-            events: {
-              onReady: function(e) {
-                window.player = e.target;
-                window.ReactNativeWebView.postMessage(JSON.stringify({ event: 'ready' }));
-              },
-              onStateChange: function(e) {
-                window.ReactNativeWebView.postMessage(JSON.stringify({
-                  event: 'state',
-                  state: e.data
-                }));
-              }
-            }
-          });
-        }
-      </script>
-    </body>
-    </html>
-  ` : '';
+  // YouTube player state change handler
+  const onStateChange = useCallback((state: string) => {
+    if (state === 'ended') {
+      setIsPlaying(false);
+    }
+    if (state === 'paused') {
+      setIsPlaying(false);
+    }
+    if (state === 'playing') {
+      // Player is playing
+    }
+  }, []);
 
   const renderSubtitle = ({ item, index }: { item: Subtitle; index: number }) => {
     const isActive = index === currentIndex;
@@ -276,7 +215,6 @@ export default function LessonScreen({ navigation, route }: LessonScreenProps) {
             styles.subText,
             isActive && styles.subTextActive,
             isCompleted && styles.subTextCompleted,
-            // In shadowing mode, blur/hide text if toggle is off
             !showText && !isCompleted && !isActive && styles.subTextHidden,
           ]}
         >
@@ -300,23 +238,25 @@ export default function LessonScreen({ navigation, route }: LessonScreenProps) {
 
   return (
     <View style={styles.container}>
-      {/* Video player area */}
+      {/* YouTube Player */}
       {lesson.videoType === 'youtube' && lesson.youtubeId && (
         <View style={styles.videoContainer}>
-          <WebView
-            ref={webViewRef}
-            source={{ html: ytHtml }}
-            style={styles.webview}
-            mediaPlaybackRequiresUserAction={false}
-            allowsInlineMediaPlayback={true}
-            javaScriptEnabled={true}
-            onMessage={(event) => {
-              try {
-                const data = JSON.parse(event.nativeEvent.data);
-                if (data.event === 'state') {
-                  setIsPlaying(data.state === 1);
-                }
-              } catch {}
+          <YoutubePlayer
+            ref={playerRef}
+            height={SCREEN_WIDTH * 9 / 16}
+            width={SCREEN_WIDTH}
+            videoId={lesson.youtubeId}
+            play={isPlaying}
+            onChangeState={onStateChange}
+            initialPlayerParams={{
+              controls: false,
+              modestbranding: true,
+              rel: false,
+              preventFullScreen: true,
+            }}
+            webViewProps={{
+              allowsInlineMediaPlayback: true,
+              mediaPlaybackRequiresUserAction: false,
             }}
           />
         </View>
@@ -324,12 +264,10 @@ export default function LessonScreen({ navigation, route }: LessonScreenProps) {
 
       {/* Controls bar */}
       <View style={styles.controlsBar}>
-        {/* Back button */}
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={22} color={Colors.textPrimary} />
         </TouchableOpacity>
 
-        {/* Title + progress */}
         <View style={styles.controlsInfo}>
           <Text style={styles.controlsTitle} numberOfLines={1}>{lesson.title}</Text>
           <View style={styles.controlsProgressRow}>
@@ -340,7 +278,6 @@ export default function LessonScreen({ navigation, route }: LessonScreenProps) {
           </View>
         </View>
 
-        {/* Phase toggle */}
         <TouchableOpacity style={styles.phaseToggle} onPress={togglePhase}>
           <Text style={styles.phaseToggleText}>
             {phase === 'shadowing' ? '🎧' : '✍️'}
@@ -434,11 +371,6 @@ const styles = StyleSheet.create({
   },
   videoContainer: {
     width: SCREEN_WIDTH,
-    height: SCREEN_WIDTH * 9 / 16,
-    backgroundColor: '#000',
-  },
-  webview: {
-    flex: 1,
     backgroundColor: '#000',
   },
   controlsBar: {

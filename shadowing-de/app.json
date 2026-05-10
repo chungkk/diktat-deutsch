@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Shadowing DE",
+    "slug": "shadowing-de",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0A0A"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.shadowingde.app",
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0A0A"
+      },
+      "package": "com.shadowingde.app",
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      "expo-av",
+      "expo-file-system"
+    ]
+  }
+}

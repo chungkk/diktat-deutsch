@@ -1,0 +1,604 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  FlatList,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+} from 'react-native';
+import { Audio, AVPlaybackStatus } from 'expo-av';
+import { Ionicons } from '@expo/vector-icons';
+import { WebView } from 'react-native-webview';
+import { Colors, Fonts, Spacing, Radius, LEVEL_COLORS } from '../theme/tokens';
+import { Subtitle, OfflineLesson, LessonProgress } from '../types';
+import { getOfflineLesson, getProgress, saveProgress } from '../services/storage';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+interface LessonScreenProps {
+  navigation: any;
+  route: {
+    params: {
+      lessonId: string;
+    };
+  };
+}
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+export default function LessonScreen({ navigation, route }: LessonScreenProps) {
+  const { lessonId } = route.params;
+  const [lesson, setLesson] = useState<OfflineLesson | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [completedIndices, setCompletedIndices] = useState<number[]>([]);
+  const [phase, setPhase] = useState<'shadowing' | 'diktat'>('shadowing');
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [showText, setShowText] = useState(true); // toggle text visibility for shadowing
+  const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
+
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const flatListRef = useRef<FlatList>(null);
+  const webViewRef = useRef<WebView>(null);
+  const playbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load lesson and progress
+  useEffect(() => {
+    (async () => {
+      const lessonData = await getOfflineLesson(lessonId);
+      if (!lessonData) {
+        Alert.alert('Fehler', 'Lektion nicht gefunden');
+        navigation.goBack();
+        return;
+      }
+      setLesson(lessonData);
+
+      const prog = await getProgress(lessonId);
+      if (prog) {
+        setCurrentIndex(prog.currentIndex);
+        setCompletedIndices(prog.completedIndices);
+        setPhase(prog.phase);
+      }
+      setLoading(false);
+    })();
+
+    return () => {
+      // Cleanup audio
+      if (soundRef.current) {
+        soundRef.current.unloadAsync();
+      }
+      if (playbackTimer.current) {
+        clearTimeout(playbackTimer.current);
+      }
+    };
+  }, [lessonId, navigation]);
+
+  // Save progress whenever it changes
+  const persistProgress = useCallback(async (
+    idx: number,
+    completed: number[],
+    currentPhase: 'shadowing' | 'diktat'
+  ) => {
+    await saveProgress({
+      lessonId,
+      currentIndex: idx,
+      completedIndices: completed,
+      phase: currentPhase,
+      lastAccessedAt: new Date().toISOString(),
+    });
+  }, [lessonId]);
+
+  // For YouTube: inject JS to control playback
+  const ytSeekAndPlay = useCallback((startTime: number, duration: number) => {
+    if (!webViewRef.current) return;
+    webViewRef.current.injectJavaScript(`
+      if (window.player) {
+        window.player.seekTo(${startTime}, true);
+        window.player.playVideo();
+        window.player.setPlaybackRate(${playbackSpeed});
+      }
+      true;
+    `);
+    setIsPlaying(true);
+
+    // Auto-pause after duration
+    if (playbackTimer.current) clearTimeout(playbackTimer.current);
+    playbackTimer.current = setTimeout(() => {
+      if (webViewRef.current) {
+        webViewRef.current.injectJavaScript(`
+          if (window.player) { window.player.pauseVideo(); }
+          true;
+        `);
+      }
+      setIsPlaying(false);
+    }, (duration + 0.3) * 1000 / playbackSpeed);
+  }, [playbackSpeed]);
+
+  const playSubtitle = useCallback((index: number) => {
+    if (!lesson) return;
+    const sub = lesson.subtitles[index];
+    if (!sub) return;
+
+    setCurrentIndex(index);
+
+    if (lesson.videoType === 'youtube') {
+      ytSeekAndPlay(sub.start, sub.dur);
+    }
+
+    // Scroll to the subtitle
+    setTimeout(() => {
+      flatListRef.current?.scrollToIndex({
+        index,
+        animated: true,
+        viewPosition: 0.3,
+      });
+    }, 100);
+  }, [lesson, ytSeekAndPlay]);
+
+  const replayCurrent = useCallback(() => {
+    playSubtitle(currentIndex);
+  }, [currentIndex, playSubtitle]);
+
+  const goNext = useCallback(() => {
+    if (!lesson) return;
+    const next = Math.min(currentIndex + 1, lesson.subtitles.length - 1);
+    playSubtitle(next);
+  }, [currentIndex, lesson, playSubtitle]);
+
+  const goPrev = useCallback(() => {
+    const prev = Math.max(currentIndex - 1, 0);
+    playSubtitle(prev);
+  }, [currentIndex, playSubtitle]);
+
+  const markCompleted = useCallback(async () => {
+    if (!lesson) return;
+    const newCompleted = completedIndices.includes(currentIndex)
+      ? completedIndices
+      : [...completedIndices, currentIndex];
+    setCompletedIndices(newCompleted);
+    await persistProgress(currentIndex, newCompleted, phase);
+
+    // Auto advance
+    if (currentIndex < lesson.subtitles.length - 1) {
+      setTimeout(() => {
+        playSubtitle(currentIndex + 1);
+      }, 400);
+    }
+  }, [currentIndex, completedIndices, lesson, phase, persistProgress, playSubtitle]);
+
+  const toggleSpeed = useCallback(() => {
+    const speeds = [0.5, 0.75, 1.0, 1.25];
+    const idx = speeds.indexOf(playbackSpeed);
+    const next = speeds[(idx + 1) % speeds.length];
+    setPlaybackSpeed(next);
+
+    if (webViewRef.current) {
+      webViewRef.current.injectJavaScript(`
+        if (window.player) { window.player.setPlaybackRate(${next}); }
+        true;
+      `);
+    }
+  }, [playbackSpeed]);
+
+  const togglePhase = useCallback(() => {
+    const newPhase = phase === 'shadowing' ? 'diktat' : 'shadowing';
+    setPhase(newPhase);
+    persistProgress(currentIndex, completedIndices, newPhase);
+  }, [phase, currentIndex, completedIndices, persistProgress]);
+
+  // YouTube HTML player
+  const ytHtml = lesson?.youtubeId ? `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+      <style>
+        * { margin: 0; padding: 0; }
+        body { background: #000; overflow: hidden; }
+        #player { width: 100vw; height: 100vh; }
+      </style>
+    </head>
+    <body>
+      <div id="player"></div>
+      <script>
+        var tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        document.head.appendChild(tag);
+        var player;
+        function onYouTubeIframeAPIReady() {
+          player = new YT.Player('player', {
+            videoId: '${lesson.youtubeId}',
+            playerVars: {
+              controls: 0,
+              modestbranding: 1,
+              rel: 0,
+              playsinline: 1,
+            },
+            events: {
+              onReady: function(e) {
+                window.player = e.target;
+                window.ReactNativeWebView.postMessage(JSON.stringify({ event: 'ready' }));
+              },
+              onStateChange: function(e) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                  event: 'state',
+                  state: e.data
+                }));
+              }
+            }
+          });
+        }
+      </script>
+    </body>
+    </html>
+  ` : '';
+
+  const renderSubtitle = ({ item, index }: { item: Subtitle; index: number }) => {
+    const isActive = index === currentIndex;
+    const isCompleted = completedIndices.includes(index);
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.subRow,
+          isActive && styles.subRowActive,
+          isCompleted && styles.subRowCompleted,
+        ]}
+        activeOpacity={0.7}
+        onPress={() => playSubtitle(index)}
+      >
+        <View style={styles.subHeader}>
+          <Text style={[styles.subNumber, isActive && styles.subNumberActive]}>
+            {index + 1}
+          </Text>
+          <Text style={styles.subTime}>{formatTime(item.start)}</Text>
+          {isActive && (
+            <View style={[styles.phaseBadge, phase === 'diktat' && styles.phaseBadgeDiktat]}>
+              <Text style={styles.phaseBadgeText}>
+                {phase === 'shadowing' ? '🎧 Shadowing' : '✍️ Diktat'}
+              </Text>
+            </View>
+          )}
+          {isCompleted && (
+            <Ionicons name="checkmark-circle" size={18} color={Colors.success} />
+          )}
+        </View>
+
+        <Text
+          style={[
+            styles.subText,
+            isActive && styles.subTextActive,
+            isCompleted && styles.subTextCompleted,
+            // In shadowing mode, blur/hide text if toggle is off
+            !showText && !isCompleted && !isActive && styles.subTextHidden,
+          ]}
+        >
+          {showText || isActive || isCompleted ? item.text : '● ● ● ● ●'}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
+  if (loading || !lesson) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.accent} />
+      </View>
+    );
+  }
+
+  const totalSubs = lesson.subtitles.length;
+  const pct = totalSubs > 0 ? Math.round((completedIndices.length / totalSubs) * 100) : 0;
+  const levelColor = LEVEL_COLORS[lesson.level] || Colors.accent;
+
+  return (
+    <View style={styles.container}>
+      {/* Video player area */}
+      {lesson.videoType === 'youtube' && lesson.youtubeId && (
+        <View style={styles.videoContainer}>
+          <WebView
+            ref={webViewRef}
+            source={{ html: ytHtml }}
+            style={styles.webview}
+            mediaPlaybackRequiresUserAction={false}
+            allowsInlineMediaPlayback={true}
+            javaScriptEnabled={true}
+            onMessage={(event) => {
+              try {
+                const data = JSON.parse(event.nativeEvent.data);
+                if (data.event === 'state') {
+                  setIsPlaying(data.state === 1);
+                }
+              } catch {}
+            }}
+          />
+        </View>
+      )}
+
+      {/* Controls bar */}
+      <View style={styles.controlsBar}>
+        {/* Back button */}
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={22} color={Colors.textPrimary} />
+        </TouchableOpacity>
+
+        {/* Title + progress */}
+        <View style={styles.controlsInfo}>
+          <Text style={styles.controlsTitle} numberOfLines={1}>{lesson.title}</Text>
+          <View style={styles.controlsProgressRow}>
+            <View style={[styles.levelDot, { backgroundColor: levelColor }]} />
+            <Text style={styles.controlsProgressText}>
+              {completedIndices.length}/{totalSubs} • {pct}%
+            </Text>
+          </View>
+        </View>
+
+        {/* Phase toggle */}
+        <TouchableOpacity style={styles.phaseToggle} onPress={togglePhase}>
+          <Text style={styles.phaseToggleText}>
+            {phase === 'shadowing' ? '🎧' : '✍️'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Playback controls */}
+      <View style={styles.playbackControls}>
+        <TouchableOpacity onPress={goPrev} style={styles.controlBtn}>
+          <Ionicons name="play-skip-back" size={20} color={Colors.textPrimary} />
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={replayCurrent} style={styles.controlBtnMain}>
+          <Ionicons
+            name={isPlaying ? 'pause' : 'play'}
+            size={24}
+            color="#fff"
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={goNext} style={styles.controlBtn}>
+          <Ionicons name="play-skip-forward" size={20} color={Colors.textPrimary} />
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={toggleSpeed} style={styles.speedBtn}>
+          <Text style={styles.speedText}>{playbackSpeed}x</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => setShowText(!showText)}
+          style={styles.controlBtn}
+        >
+          <Ionicons
+            name={showText ? 'eye' : 'eye-off'}
+            size={20}
+            color={showText ? Colors.accent : Colors.textMuted}
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={markCompleted} style={styles.doneBtn}>
+          <Ionicons name="checkmark" size={18} color="#fff" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Progress bar */}
+      <View style={styles.progressTrack}>
+        <View
+          style={[
+            styles.progressFill,
+            {
+              width: `${pct}%`,
+              backgroundColor: pct >= 100 ? Colors.success : Colors.accent,
+            },
+          ]}
+        />
+      </View>
+
+      {/* Subtitle list */}
+      <FlatList
+        ref={flatListRef}
+        data={lesson.subtitles}
+        keyExtractor={(_, i) => String(i)}
+        renderItem={renderSubtitle}
+        contentContainerStyle={styles.subtitleList}
+        showsVerticalScrollIndicator={false}
+        onScrollToIndexFailed={(info) => {
+          setTimeout(() => {
+            flatListRef.current?.scrollToIndex({
+              index: info.index,
+              animated: true,
+              viewPosition: 0.3,
+            });
+          }, 200);
+        }}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.bg,
+  },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: Colors.bg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoContainer: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_WIDTH * 9 / 16,
+    backgroundColor: '#000',
+  },
+  webview: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  controlsBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    gap: Spacing.sm,
+  },
+  backBtn: {
+    padding: Spacing.xs,
+  },
+  controlsInfo: {
+    flex: 1,
+  },
+  controlsTitle: {
+    fontSize: Fonts.size.md,
+    fontWeight: Fonts.weight.bold,
+    color: Colors.textPrimary,
+  },
+  controlsProgressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  levelDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  controlsProgressText: {
+    fontSize: Fonts.size.xs,
+    color: Colors.textSecondary,
+  },
+  phaseToggle: {
+    backgroundColor: Colors.bgSurface,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: Radius.full,
+  },
+  phaseToggleText: {
+    fontSize: Fonts.size.md,
+  },
+  playbackControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    gap: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  controlBtn: {
+    padding: Spacing.sm,
+  },
+  controlBtnMain: {
+    backgroundColor: Colors.accent,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  speedBtn: {
+    backgroundColor: Colors.bgSurface,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: Radius.full,
+  },
+  speedText: {
+    fontSize: Fonts.size.sm,
+    color: Colors.accent,
+    fontWeight: Fonts.weight.bold,
+  },
+  doneBtn: {
+    backgroundColor: Colors.success,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  progressTrack: {
+    height: 3,
+    backgroundColor: Colors.bgSurface,
+  },
+  progressFill: {
+    height: '100%',
+  },
+  subtitleList: {
+    padding: Spacing.md,
+    paddingBottom: 100,
+  },
+  subRow: {
+    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  subRowActive: {
+    borderColor: Colors.accent,
+    backgroundColor: Colors.accentDim,
+  },
+  subRowCompleted: {
+    borderColor: Colors.success,
+    backgroundColor: Colors.successDim,
+  },
+  subHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  subNumber: {
+    fontSize: Fonts.size.xs,
+    color: Colors.textMuted,
+    fontWeight: Fonts.weight.bold,
+    minWidth: 20,
+  },
+  subNumberActive: {
+    color: Colors.accent,
+  },
+  subTime: {
+    fontSize: Fonts.size.xs,
+    color: Colors.textMuted,
+  },
+  phaseBadge: {
+    backgroundColor: Colors.accentDim,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: Radius.sm,
+  },
+  phaseBadgeDiktat: {
+    backgroundColor: Colors.successDim,
+  },
+  phaseBadgeText: {
+    fontSize: Fonts.size.xs,
+    color: Colors.textPrimary,
+    fontWeight: Fonts.weight.medium,
+  },
+  subText: {
+    fontSize: Fonts.size.lg,
+    color: Colors.textSecondary,
+    lineHeight: 26,
+  },
+  subTextActive: {
+    color: Colors.textPrimary,
+    fontWeight: Fonts.weight.medium,
+  },
+  subTextCompleted: {
+    color: Colors.success,
+  },
+  subTextHidden: {
+    color: Colors.textMuted,
+    letterSpacing: 2,
+  },
+});

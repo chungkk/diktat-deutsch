@@ -336,12 +336,15 @@ a:hover { @apply text-accent-hover; }
   @apply inline-flex items-center relative cursor-text mx-1 align-baseline transition-all duration-200;
 }
 .cloze-input {
-  @apply bg-bg-input text-text-primary text-base font-semibold font-sans py-1.5 px-3 rounded-lg outline-none transition-all duration-200;
+  @apply bg-bg-input text-text-primary text-base font-semibold py-1.5 px-2 rounded-lg outline-none transition-all duration-200;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
   border: 1.5px solid var(--color-border);
   border-bottom-width: 2.5px;
+  letter-spacing: 0.05em;
 }
 .cloze-input::placeholder {
-  @apply text-text-muted opacity-25 tracking-widest;
+  @apply text-text-muted opacity-35;
+  letter-spacing: 0.15em;
 }
 .cloze-input:focus {
   @apply border-accent;

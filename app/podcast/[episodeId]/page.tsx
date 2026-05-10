@@ -520,8 +520,8 @@ export default function PodcastEpisodePage() {
                               onChange={e => handleBlankChange(i, wi, e.target.value)}
                               onKeyDown={e => handleBlankKeyDown(e, i, wi)}
                               maxLength={cleanWord.length}
-                              placeholder={'_ '.repeat(cleanWord.length).trim()}
-                              style={{ width: `${cleanWord.length + 2}ch` }}
+                              placeholder={'_'.repeat(cleanWord.length)}
+                              style={{ width: `${cleanWord.length + 0.8}ch` }}
                             />
                             {punct && <span className="cloze-punct">{punct}</span>}
                             {' '}

@@ -651,8 +651,8 @@ export default function LessonPage() {
                               onKeyDown={e => handleBlankKeyDown(e, i, wi)}
                               autoFocus={wi === Array.from(blanks).sort((a, b) => a - b)[0]}
                               maxLength={cleanWord.length}
-                              placeholder={'_ '.repeat(cleanWord.length).trim()}
-                              style={{ width: `${cleanWord.length + 2}ch` }}
+                              placeholder={'_'.repeat(cleanWord.length)}
+                              style={{ width: `${cleanWord.length + 0.8}ch` }}
                             />
                             {punct && <span className="cloze-punct">{punct}</span>}
                             {' '}

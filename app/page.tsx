@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -121,26 +121,43 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
+  const fetchData = useCallback(() => {
+    if (status !== 'authenticated') return;
+    Promise.all([
+      fetch('/api/lessons', { cache: 'no-store' }).then(r => r.json()),
+      fetch('/api/progress', { cache: 'no-store' }).then(r => r.json()),
+    ]).then(([lessonsData, progressData]) => {
+      const sorted = (lessonsData as Lesson[]).sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+      setLessons(sorted);
+      setProgress(Array.isArray(progressData) ? progressData : []);
+      setLoading(false);
+    });
+  }, [status]);
+
+  // Initial load + auth redirect
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/login');
       return;
     }
-    if (status === 'authenticated') {
-      Promise.all([
-        fetch('/api/lessons').then(r => r.json()),
-        fetch('/api/progress').then(r => r.json()),
-      ]).then(([lessonsData, progressData]) => {
-        // Sort oldest first so learners progress sequentially
-        const sorted = (lessonsData as Lesson[]).sort(
-          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-        );
-        setLessons(sorted);
-        setProgress(Array.isArray(progressData) ? progressData : []);
-        setLoading(false);
-      });
-    }
-  }, [status, router]);
+    fetchData();
+  }, [status, router, fetchData]);
+
+  // Refetch when page becomes visible again (e.g. navigating back from lesson)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') fetchData();
+    };
+    const handleFocus = () => fetchData();
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [fetchData]);
 
   const getProgress = (lessonId: string) => {
     return progress.find(p => {
@@ -214,33 +231,6 @@ export default function HomePage() {
             <p className="home-hero-subtitle">
               Höre zu, schreibe mit, und werde besser — Schritt für Schritt! 🚀
             </p>
-
-            {/* Stats */}
-            <div className="home-stats-row">
-              <div className="home-stat">
-                <span className="home-stat-icon">📚</span>
-                <span className="home-stat-value">{totalLessons}</span>
-                <span className="home-stat-label">Lektionen</span>
-              </div>
-              <div className="home-stat-divider" />
-              <div className="home-stat">
-                <span className="home-stat-icon">🔓</span>
-                <span className="home-stat-value">{unlockedCount}</span>
-                <span className="home-stat-label">Freigeschaltet</span>
-              </div>
-              <div className="home-stat-divider" />
-              <div className="home-stat">
-                <span className="home-stat-icon">🏆</span>
-                <span className="home-stat-value">{completedCount}</span>
-                <span className="home-stat-label">Abgeschlossen</span>
-              </div>
-              <div className="home-stat-divider" />
-              <div className="home-stat">
-                <span className="home-stat-icon">📊</span>
-                <span className="home-stat-value">{totalOverallPct}%</span>
-                <span className="home-stat-label">Fortschritt</span>
-              </div>
-            </div>
           </div>
         </div>
       </div>

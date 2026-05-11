@@ -7,6 +7,13 @@ import Footer from "@/components/Footer";
 export const metadata: Metadata = {
   title: "Diktat Deutsch - Hörverstehen üben",
   description: "Lerne Deutsch durch Diktate mit YouTube-Videos und lokalen Aufnahmen",
+  manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    apple: "/apple-icon.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

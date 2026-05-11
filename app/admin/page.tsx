@@ -26,6 +26,7 @@ export default function AdminPage() {
   const [videoType, setVideoType] = useState<'youtube' | 'local'>('youtube');
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [isPublished, setIsPublished] = useState(false);
+  const [useWhisper, setUseWhisper] = useState(false);
   const [subtitles, setSubtitles] = useState<Subtitle[]>([]);
   const [subLoading, setSubLoading] = useState(false);
   const [subError, setSubError] = useState('');
@@ -71,7 +72,8 @@ export default function AdminPage() {
     if (!videoId) return;
     setSubLoading(true); setSubError('');
     try {
-      const res = await fetch('/api/youtube-subs', {
+      const endpoint = useWhisper ? '/api/youtube-whisper' : '/api/youtube-subs';
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ videoId, lang: 'de' }),
@@ -119,7 +121,7 @@ export default function AdminPage() {
     setTitle(''); setDescription(''); setLevel('A1'); setVideoType('youtube');
     setYoutubeUrl(''); setIsPublished(false); setSubtitles([]);
     setSubError(''); setUploadFile(null); setVideoUrl(''); setEditId(null);
-    setThumbnail(''); setDuration(0);
+    setThumbnail(''); setDuration(0); setUseWhisper(false);
   };
 
   const openNew = () => { resetForm(); setShowModal(true); };
@@ -266,9 +268,13 @@ export default function AdminPage() {
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input className="form-input" value={youtubeUrl} onChange={e => setYoutubeUrl(e.target.value)} placeholder="https://youtube.com/watch?v=..." />
                   <button className="btn btn-primary" onClick={fetchYoutubeSubs} disabled={subLoading || !youtubeUrl}>
-                    {subLoading ? '...' : 'Subs laden'}
+                    {subLoading ? '...' : useWhisper ? '🎙 Whisper' : 'Subs laden'}
                   </button>
                 </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginTop: 8, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  <input type="checkbox" checked={useWhisper} onChange={e => setUseWhisper(e.target.checked)} />
+                  🎙 Whisper verwenden (OpenAI — bessere Qualität, dauert länger)
+                </label>
               </div>
             ) : (
               <div className="form-group">

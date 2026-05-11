@@ -40,31 +40,32 @@ export default function RegisterPage() {
   return (
     <div className="auth-container">
       <div className="auth-card">
+        <div className="auth-icon">🚀</div>
         <h1 className="auth-title">Konto erstellen</h1>
-        <p className="auth-subtitle">Starte deine Deutsch-Lernreise</p>
+        <p className="auth-subtitle">Starte deine Deutsch-Lernreise ✨</p>
 
-        {error && <div className="auth-error">{error}</div>}
+        {error && <div className="auth-error">⚠️ {error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="username">Benutzername</label>
+            <label htmlFor="username">👤 Benutzername</label>
             <input id="username" type="text" className="form-input" value={username} onChange={e => setUsername(e.target.value)} placeholder="Dein Name" required />
           </div>
           <div className="form-group">
-            <label htmlFor="email">E-Mail</label>
+            <label htmlFor="email">📧 E-Mail</label>
             <input id="email" type="email" className="form-input" value={email} onChange={e => setEmail(e.target.value)} placeholder="deine@email.de" required />
           </div>
           <div className="form-group">
-            <label htmlFor="password">Passwort</label>
+            <label htmlFor="password">🔑 Passwort</label>
             <input id="password" type="password" className="form-input" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min. 6 Zeichen" required />
           </div>
           <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
-            {loading ? 'Registrieren...' : 'Registrieren'}
+            {loading ? '⏳ Registrieren...' : '🎉 Registrieren'}
           </button>
         </form>
 
         <div className="auth-footer">
-          Bereits ein Konto? <Link href="/login">Anmelden</Link>
+          Bereits ein Konto? <Link href="/login">🔑 Anmelden</Link>
         </div>
       </div>
     </div>

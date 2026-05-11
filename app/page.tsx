@@ -35,6 +35,15 @@ const LEVEL_COLORS: Record<string, string> = {
   C2: '#e17055',
 };
 
+const LEVEL_EMOJI: Record<string, string> = {
+  A1: '🌱',
+  A2: '🌿',
+  B1: '🌸',
+  B2: '💜',
+  C1: '🔥',
+  C2: '⭐',
+};
+
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
@@ -96,6 +105,15 @@ function ProgressRing({ pct, size = 44, stroke = 3.5 }: { pct: number; size?: nu
   );
 }
 
+function getGreeting(): { text: string; emoji: string } {
+  const h = new Date().getHours();
+  if (h < 6) return { text: 'Gute Nacht', emoji: '🌙' };
+  if (h < 12) return { text: 'Guten Morgen', emoji: '☀️' };
+  if (h < 17) return { text: 'Guten Tag', emoji: '🌤️' };
+  if (h < 21) return { text: 'Guten Abend', emoji: '🌅' };
+  return { text: 'Gute Nacht', emoji: '🌙' };
+}
+
 export default function HomePage() {
   const { data: session, status } = useSession();
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -133,7 +151,14 @@ export default function HomePage() {
   };
 
   if (status === 'loading' || loading) {
-    return <div className="loading"><div className="spinner" /></div>;
+    return (
+      <div className="loading">
+        <div className="loading-cute">
+          <div className="spinner" />
+          <span className="loading-text">Lade deine Lektionen... ✨</span>
+        </div>
+      </div>
+    );
   }
 
   const totalLessons = lessons.length;
@@ -156,30 +181,89 @@ export default function HomePage() {
     return count;
   })();
 
+  const completedCount = lessons.filter(l => {
+    const prog = getProgress(l._id);
+    return prog?.isCompleted;
+  }).length;
+
+  const totalOverallPct = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
+
   const getThumbnail = (lesson: Lesson) => {
     if (lesson.thumbnail) return lesson.thumbnail;
     if (lesson.youtubeId) return `https://img.youtube.com/vi/${lesson.youtubeId}/mqdefault.jpg`;
     return null;
   };
 
+  const greeting = getGreeting();
+
   return (
     <div className="home-page">
+      {/* Hero Section */}
+      <div className="home-hero">
+        <div className="container">
+          <div className="home-hero-content">
+            <div className="home-hero-greeting">
+              <span className="home-hero-greeting-emoji">{greeting.emoji}</span>
+              <span className="home-hero-greeting-text">
+                {greeting.text}, <strong>{session?.user?.name || 'Lerner'}</strong>!
+              </span>
+            </div>
+            <h1 className="home-hero-title">
+              Bereit zum <span className="home-hero-accent">Deutschlernen</span>? 🎯
+            </h1>
+            <p className="home-hero-subtitle">
+              Höre zu, schreibe mit, und werde besser — Schritt für Schritt! 🚀
+            </p>
+
+            {/* Stats */}
+            <div className="home-stats-row">
+              <div className="home-stat">
+                <span className="home-stat-icon">📚</span>
+                <span className="home-stat-value">{totalLessons}</span>
+                <span className="home-stat-label">Lektionen</span>
+              </div>
+              <div className="home-stat-divider" />
+              <div className="home-stat">
+                <span className="home-stat-icon">🔓</span>
+                <span className="home-stat-value">{unlockedCount}</span>
+                <span className="home-stat-label">Freigeschaltet</span>
+              </div>
+              <div className="home-stat-divider" />
+              <div className="home-stat">
+                <span className="home-stat-icon">🏆</span>
+                <span className="home-stat-value">{completedCount}</span>
+                <span className="home-stat-label">Abgeschlossen</span>
+              </div>
+              <div className="home-stat-divider" />
+              <div className="home-stat">
+                <span className="home-stat-icon">📊</span>
+                <span className="home-stat-value">{totalOverallPct}%</span>
+                <span className="home-stat-label">Fortschritt</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Lesson Grid */}
       <div className="container">
         {lessons.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-state-icon">🎧</div>
+            <div className="empty-state-icon">📭</div>
             <p className="empty-state-text">Noch keine Lektionen verfügbar</p>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: 8 }}>
-              Erstelle deine erste Lektion im Admin-Bereich
+              Erstelle deine erste Lektion im Admin-Bereich ✨
             </p>
           </div>
         ) : (
           <>
             <div className="home-section-header">
-              <h2 className="home-section-title">Alle Lektionen</h2>
-              <span className="home-section-count">{unlockedCount}/{totalLessons} freigeschaltet</span>
+              <h2 className="home-section-title">
+                <span>📖</span> Alle Lektionen
+              </h2>
+              <span className="home-section-count">
+                🔓 {unlockedCount}/{totalLessons} freigeschaltet
+              </span>
             </div>
             <div className="home-grid">
               {lessons.map((lesson, idx) => {
@@ -189,6 +273,7 @@ export default function HomePage() {
                 const pct = totalSubs > 0 ? Math.round((completed / totalSubs) * 100) : 0;
                 const thumb = getThumbnail(lesson);
                 const levelColor = LEVEL_COLORS[lesson.level] || 'var(--accent)';
+                const levelEmoji = LEVEL_EMOJI[lesson.level] || '📝';
                 const isLocked = idx >= unlockedCount;
 
                 const cardContent = (
@@ -207,7 +292,7 @@ export default function HomePage() {
                       {/* Duration badge */}
                       {!isLocked && lesson.duration && lesson.duration > 0 && (
                         <span className="home-card-duration">
-                          {formatDuration(lesson.duration)}
+                          ⏱️ {formatDuration(lesson.duration)}
                         </span>
                       )}
 
@@ -219,16 +304,13 @@ export default function HomePage() {
                           boxShadow: isLocked ? 'none' : `0 2px 12px ${levelColor}44`,
                         }}
                       >
-                        {lesson.level}
+                        {levelEmoji} {lesson.level}
                       </span>
 
                       {/* Lock overlay */}
                       {isLocked && (
                         <div className="home-card-lock-overlay">
-                          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                          </svg>
+                          <span className="lock-icon-cute">🔒</span>
                           <span>Lektion {idx} abschließen</span>
                         </div>
                       )}
@@ -236,7 +318,7 @@ export default function HomePage() {
                       {/* Completed overlay */}
                       {!isLocked && prog?.isCompleted && (
                         <div className="home-card-completed-badge">
-                          <span>✓</span>
+                          <span>🎉</span>
                         </div>
                       )}
                     </div>
@@ -247,15 +329,10 @@ export default function HomePage() {
 
                       <div className="home-card-meta">
                         <span className="home-card-meta-item">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                          {totalSubs} Sätze
+                          ✏️ {totalSubs} Sätze
                         </span>
                         <span className="home-card-meta-item">
-                          {lesson.videoType === 'youtube' ? (
-                            <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zM9 16V8l8 4-8 4z"/></svg> YouTube</>
-                          ) : (
-                            <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg> Lokal</>
-                          )}
+                          {lesson.videoType === 'youtube' ? '▶️ YouTube' : '📁 Lokal'}
                         </span>
                       </div>
 
@@ -273,7 +350,7 @@ export default function HomePage() {
                               />
                             </div>
                             <span className="home-card-progress-text">
-                              {completed}/{totalSubs}
+                              {pct >= 100 ? '🎊 ' : '📝 '}{completed}/{totalSubs}
                             </span>
                           </div>
                           <ProgressRing pct={pct} size={36} stroke={3} />

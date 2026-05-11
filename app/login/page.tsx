@@ -34,27 +34,28 @@ export default function LoginPage() {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <h1 className="auth-title">Willkommen zurück</h1>
-        <p className="auth-subtitle">Melde dich an, um weiterzulernen</p>
+        <div className="auth-icon">👋</div>
+        <h1 className="auth-title">Willkommen zurück!</h1>
+        <p className="auth-subtitle">Melde dich an, um weiterzulernen ✨</p>
 
-        {error && <div className="auth-error">{error}</div>}
+        {error && <div className="auth-error">⚠️ {error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="email">E-Mail</label>
+            <label htmlFor="email">📧 E-Mail</label>
             <input id="email" type="email" className="form-input" value={email} onChange={e => setEmail(e.target.value)} placeholder="deine@email.de" required />
           </div>
           <div className="form-group">
-            <label htmlFor="password">Passwort</label>
+            <label htmlFor="password">🔑 Passwort</label>
             <input id="password" type="password" className="form-input" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••" required />
           </div>
           <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
-            {loading ? 'Anmelden...' : 'Anmelden'}
+            {loading ? '⏳ Anmelden...' : '🚀 Anmelden'}
           </button>
         </form>
 
         <div className="auth-footer">
-          Noch kein Konto? <Link href="/register">Registrieren</Link>
+          Noch kein Konto? <Link href="/register">📝 Registrieren</Link>
         </div>
       </div>
     </div>

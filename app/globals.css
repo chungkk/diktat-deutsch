@@ -187,7 +187,71 @@ a:hover { @apply text-accent-hover; }
 }
 .video-wrapper iframe, .video-wrapper video {
   @apply absolute top-0 left-0 w-full h-full;
+  transition: filter 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* ═══ VIDEO BLUR ═══ */
+.video-blur-light iframe,
+.video-blur-light video {
+  filter: blur(8px) brightness(0.85);
+}
+.video-blur-heavy iframe,
+.video-blur-heavy video {
+  filter: blur(24px) brightness(0.6) saturate(0.5);
+}
+.video-blur-light,
+.video-blur-heavy {
+  @apply relative;
+}
+.video-blur-label {
+  @apply absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none;
+  animation: fadeIn 0.3s ease;
+}
+.video-blur-label span {
+  @apply inline-flex items-center gap-2 py-2 px-5 rounded-full text-sm font-bold text-white tracking-wide;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* Video blur toggle button */
+.video-blur-toggle {
+  @apply mb-4;
+}
+.video-blur-btn {
+  @apply flex items-center gap-2.5 w-full py-2.5 px-4 bg-bg-input border border-border rounded-lg text-text-secondary text-sm font-semibold font-sans cursor-pointer transition-all duration-300;
+}
+.video-blur-btn:hover {
+  @apply border-accent/50 text-text-primary;
+  background: rgba(168,85,247,0.06);
+  box-shadow: 0 0 12px rgba(168,85,247,0.15);
+}
+.video-blur-btn-active {
+  @apply border-accent text-accent;
+  background: linear-gradient(135deg, rgba(168,85,247,0.12) 0%, rgba(244,114,182,0.08) 100%);
+  box-shadow: 0 0 20px rgba(168,85,247,0.25);
+}
+.video-blur-btn-active:hover {
+  box-shadow: 0 0 28px rgba(168,85,247,0.35);
+}
+.video-blur-btn-icon {
+  @apply text-lg transition-transform duration-300;
+}
+.video-blur-btn:hover .video-blur-btn-icon {
+  @apply scale-115;
+}
+.video-blur-btn-text {
+  @apply flex-1 text-left;
+}
+.video-blur-btn-level {
+  @apply py-0.5 px-2 rounded text-[0.65rem] font-bold tracking-wider bg-bg-card border border-border;
+  transition: all 0.3s ease;
+}
+.video-blur-btn-active .video-blur-btn-level {
+  @apply bg-accent/20 text-accent border-accent/40;
+}
+
 .lesson-split-title { @apply text-xl font-semibold mb-2 leading-snug; }
 .lesson-split-meta { @apply flex items-center gap-3 text-text-secondary text-xs mb-5; }
 .lesson-progress-section {
@@ -826,6 +890,11 @@ a:hover { @apply text-accent-hover; }
   /* Mode toggle compact */
   .mode-toggle { @apply mb-3; }
   .mode-btn { @apply py-1.5 px-2 text-[0.7rem]; }
+
+  /* Video blur toggle compact */
+  .video-blur-toggle { @apply mb-3; }
+  .video-blur-btn { @apply py-2 px-3 text-xs gap-1.5; }
+  .video-blur-btn-icon { @apply text-sm; }
 }
 @media (max-width: 480px) {
   .container { @apply px-4; }

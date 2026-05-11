@@ -59,6 +59,7 @@ export default function LessonPage() {
   const [loading, setLoading] = useState(true);
   const [blankMode, setBlankMode] = useState<50 | 100>(100);
   const [peekingIndex, setPeekingIndex] = useState<number | null>(null);
+  const [videoBlurLevel, setVideoBlurLevel] = useState<0 | 1 | 2>(0); // 0=off, 1=light, 2=heavy
 
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -283,6 +284,10 @@ export default function LessonPage() {
   }, [seekToSubtitle, subTokens]);
 
   // Keyboard shortcuts
+  const cycleVideoBlur = useCallback(() => {
+    setVideoBlurLevel(prev => ((prev + 1) % 3) as 0 | 1 | 2);
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -303,10 +308,15 @@ export default function LessonPage() {
         const total = lesson?.subtitles?.length || 0;
         if (currentIndex < total - 1) selectSubtitle(currentIndex + 1);
       }
+      // B key: cycle video blur (only when not in an input)
+      if (e.code === 'KeyB' && !isInput) {
+        e.preventDefault();
+        cycleVideoBlur();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlay, seekBy, seekToSubtitle, currentIndex, lesson, selectSubtitle]);
+  }, [togglePlay, seekBy, seekToSubtitle, currentIndex, lesson, selectSubtitle, cycleVideoBlur]);
 
   // Scroll active subtitle to center of right panel
   useEffect(() => {
@@ -470,7 +480,7 @@ export default function LessonPage() {
       {/* LEFT: Video + Controls */}
       <div className="lesson-left">
         <div className="lesson-left-sticky">
-          <div className="video-wrapper">
+          <div className={`video-wrapper ${videoBlurLevel === 1 ? 'video-blur-light' : videoBlurLevel === 2 ? 'video-blur-heavy' : ''}`}>
             {lesson.videoType === 'youtube' ? (
               <iframe
                 ref={ytIframeRef}
@@ -488,6 +498,12 @@ export default function LessonPage() {
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
               />
+            )}
+            {/* Blur overlay label */}
+            {videoBlurLevel > 0 && (
+              <div className="video-blur-label">
+                <span>{videoBlurLevel === 1 ? '🌫️ Leicht' : '🔇 Stark'}</span>
+              </div>
             )}
           </div>
 
@@ -527,12 +543,32 @@ export default function LessonPage() {
             </div>
           </div>
 
+          {/* Video Blur Toggle */}
+          <div className="video-blur-toggle">
+            <button
+              className={`video-blur-btn ${videoBlurLevel > 0 ? 'video-blur-btn-active' : ''}`}
+              onClick={cycleVideoBlur}
+              title="Video verschwommen machen (B)"
+            >
+              <span className="video-blur-btn-icon">
+                {videoBlurLevel === 0 ? '👁️' : videoBlurLevel === 1 ? '🌫️' : '🔇'}
+              </span>
+              <span className="video-blur-btn-text">
+                {videoBlurLevel === 0 ? 'Video klar' : videoBlurLevel === 1 ? 'Leicht unscharf' : 'Stark unscharf'}
+              </span>
+              <span className="video-blur-btn-level">
+                {['AUS', 'LEICHT', 'STARK'][videoBlurLevel]}
+              </span>
+            </button>
+          </div>
+
           <div className="lesson-shortcuts">
             <kbd>Space</kbd> Wiederholen
             <kbd>←</kbd> -2s
             <kbd>→</kbd> +2s
             <kbd>↑↓</kbd> Chuyển câu
             <kbd>Tab</kbd> Zwischen Feldern
+            <kbd>B</kbd> Video Blur
           </div>
         </div>
       </div>

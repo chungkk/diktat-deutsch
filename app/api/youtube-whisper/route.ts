@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { execFile } from 'child_process';
-import { readFile, unlink, mkdtemp } from 'fs/promises';
+import { readFile, unlink, mkdtemp, readdir } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import OpenAI from 'openai';
@@ -63,22 +63,46 @@ export async function POST(req: NextRequest) {
         videoTitle = meta.title || meta.fulltitle || '';
         videoDuration = meta.duration || 0;
         if (meta.thumbnail) videoThumbnail = meta.thumbnail;
-      } catch { /* metadata fetch failed, continue with defaults */ }
+      } catch (metaErr) {
+        console.warn('Metadata fetch failed (continuing):', metaErr);
+      }
 
-      // 2) Download audio only (best audio, convert to mp3 for Whisper compatibility)
-      const audioPath = join(tmpDir, 'audio.mp3');
-      await runYtDlp([
-        '--no-warnings',
-        '-x', '--audio-format', 'mp3',
-        '--audio-quality', '5',  // medium quality, smaller file
-        '-o', audioPath,
-        videoUrl,
-      ]);
+      // 2) Download audio only — use output template without extension,
+      //    yt-dlp will add the correct extension after conversion
+      const outputTemplate = join(tmpDir, 'audio');
+      try {
+        await runYtDlp([
+          '--no-warnings',
+          '-x', '--audio-format', 'mp3',
+          '--audio-quality', '5',
+          '-o', `${outputTemplate}.%(ext)s`,
+          videoUrl,
+        ]);
+      } catch (dlErr) {
+        console.error('yt-dlp audio download failed:', dlErr);
+        return NextResponse.json(
+          { error: `Audio-Download fehlgeschlagen: ${(dlErr as Error).message?.slice(0, 200)}` },
+          { status: 500 }
+        );
+      }
+
+      // Find the downloaded audio file (yt-dlp may name it .mp3, .m4a, .opus, etc.)
+      const files = await readdir(tmpDir);
+      const audioFile = files.find(f => f.startsWith('audio'));
+      if (!audioFile) {
+        return NextResponse.json(
+          { error: 'Audio-Datei wurde nicht erstellt. Prüfen Sie, ob ffmpeg installiert ist.' },
+          { status: 500 }
+        );
+      }
+
+      const audioPath = join(tmpDir, audioFile);
 
       // 3) Read audio file and send to Whisper
       const audioBuffer = await readFile(audioPath);
+      console.log(`Audio downloaded: ${audioFile} (${(audioBuffer.byteLength / 1024 / 1024).toFixed(1)} MB)`);
 
-      // Whisper has a 25MB limit — check file size
+      // Whisper has a 25MB limit
       if (audioBuffer.byteLength > 25 * 1024 * 1024) {
         return NextResponse.json(
           { error: 'Audio-Datei ist zu groß für Whisper (max. 25 MB). Versuchen Sie ein kürzeres Video.' },
@@ -86,44 +110,61 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const audioFile = new File([audioBuffer], 'audio.mp3', { type: 'audio/mpeg' });
+      // Determine mime type from extension
+      const ext = audioFile.split('.').pop() || 'mp3';
+      const mimeMap: Record<string, string> = {
+        mp3: 'audio/mpeg', m4a: 'audio/mp4', opus: 'audio/opus',
+        ogg: 'audio/ogg', wav: 'audio/wav', webm: 'audio/webm',
+      };
+      const mime = mimeMap[ext] || 'audio/mpeg';
 
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      const response = await openai.audio.transcriptions.create({
-        file: audioFile,
-        model: 'whisper-1',
-        language: 'de',
-        response_format: 'verbose_json',
-        timestamp_granularities: ['segment'],
-      });
+      const whisperFile = new File([audioBuffer], `audio.${ext}`, { type: mime });
 
-      const subtitles = (response.segments || []).map((seg: { start: number; end: number; text: string }) => ({
-        start: seg.start,
-        dur: seg.end - seg.start,
-        text: seg.text.trim(),
-      })).filter((s: { text: string }) => s.text.length > 0);
+      try {
+        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        const response = await openai.audio.transcriptions.create({
+          file: whisperFile,
+          model: 'whisper-1',
+          language: 'de',
+          response_format: 'verbose_json',
+          timestamp_granularities: ['segment'],
+        });
 
-      if (subtitles.length === 0) {
+        const subtitles = (response.segments || []).map((seg: { start: number; end: number; text: string }) => ({
+          start: seg.start,
+          dur: seg.end - seg.start,
+          text: seg.text.trim(),
+        })).filter((s: { text: string }) => s.text.length > 0);
+
+        if (subtitles.length === 0) {
+          return NextResponse.json(
+            { error: 'Whisper konnte keine Sprache im Video erkennen.' },
+            { status: 404 }
+          );
+        }
+
+        return NextResponse.json({ subtitles, videoTitle, videoDuration, videoThumbnail });
+      } catch (whisperErr) {
+        console.error('Whisper API error:', whisperErr);
+        const msg = (whisperErr as Error).message || '';
         return NextResponse.json(
-          { error: 'Whisper konnte keine Sprache im Video erkennen.' },
-          { status: 404 }
+          { error: `Whisper API Fehler: ${msg.slice(0, 300)}` },
+          { status: 500 }
         );
       }
-
-      return NextResponse.json({ subtitles, videoTitle, videoDuration, videoThumbnail });
     } finally {
       // Cleanup temp directory
       try {
-        const { readdir, rm } = await import('fs/promises');
-        const files = await readdir(tmpDir);
-        for (const f of files) await unlink(join(tmpDir, f)).catch(() => {});
+        const tmpFiles = await readdir(tmpDir);
+        for (const f of tmpFiles) await unlink(join(tmpDir, f)).catch(() => {});
+        const { rm } = await import('fs/promises');
         await rm(tmpDir, { recursive: true, force: true });
       } catch { /* ignore cleanup errors */ }
     }
   } catch (error: unknown) {
     console.error('YouTube Whisper transcription error:', error);
     return NextResponse.json(
-      { error: 'Whisper-Transkription fehlgeschlagen. Stellen Sie sicher, dass OPENAI_API_KEY gesetzt ist.' },
+      { error: `Unbekannter Fehler: ${(error as Error).message?.slice(0, 300)}` },
       { status: 500 }
     );
   }
@@ -131,3 +172,4 @@ export async function POST(req: NextRequest) {
 
 // Allow longer execution for audio download + transcription
 export const maxDuration = 120;
+

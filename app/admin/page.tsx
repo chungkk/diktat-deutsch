@@ -35,6 +35,8 @@ export default function AdminPage() {
   const [thumbnail, setThumbnail] = useState('');
   const [duration, setDuration] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [fixFile, setFixFile] = useState<File | null>(null);
+  const [fixLoading, setFixLoading] = useState(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') { router.push('/login'); return; }
@@ -94,6 +96,25 @@ export default function AdminPage() {
     setSubLoading(false);
   };
 
+  const handleFixSubs = async () => {
+    if (!fixFile || subtitles.length === 0) return;
+    setFixLoading(true); setSubError('');
+    try {
+      const formData = new FormData();
+      formData.append('file', fixFile);
+      formData.append('subtitles', JSON.stringify(subtitles));
+      const res = await fetch('/api/fix-subs', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.error) { setSubError(data.error); }
+      else {
+        setSubtitles(data.subtitles);
+        setFixFile(null);
+        setSubError('');
+      }
+    } catch { setSubError('Fehler beim Korrigieren der Untertitel'); }
+    setFixLoading(false);
+  };
+
   const handleUpload = async () => {
     if (!uploadFile) return;
     setSubLoading(true); setSubError('');
@@ -122,6 +143,7 @@ export default function AdminPage() {
     setYoutubeUrl(''); setIsPublished(false); setSubtitles([]);
     setSubError(''); setUploadFile(null); setVideoUrl(''); setEditId(null);
     setThumbnail(''); setDuration(0); setUseWhisper(false);
+    setFixFile(null); setFixLoading(false);
   };
 
   const openNew = () => { resetForm(); setShowModal(true); };
@@ -311,7 +333,34 @@ export default function AdminPage() {
 
             {subtitles.length > 0 && (
               <div className="form-group">
-                <label>{subtitles.length} Untertitel geladen</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <label style={{ margin: 0 }}>{subtitles.length} Untertitel geladen</label>
+                </div>
+
+                {/* Fix subtitles with original text file */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8, padding: 12, background: 'var(--bg-secondary)', borderRadius: 8, border: '1px dashed var(--border)' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '0.8rem', color: 'var(--accent)', display: 'block', marginBottom: 4 }}>📝 Sub korrigieren mit Originaltext</label>
+                    <input
+                      type="file"
+                      accept=".txt,.srt,.vtt"
+                      className="form-input"
+                      style={{ fontSize: '0.8rem', padding: '6px 8px' }}
+                      onChange={e => setFixFile(e.target.files?.[0] || null)}
+                    />
+                  </div>
+                  {fixFile && (
+                    <button
+                      className="btn btn-primary btn-sm"
+                      style={{ alignSelf: 'flex-end', whiteSpace: 'nowrap' }}
+                      onClick={handleFixSubs}
+                      disabled={fixLoading}
+                    >
+                      {fixLoading ? '⏳ Korrigiere...' : '✅ Korrigieren'}
+                    </button>
+                  )}
+                </div>
+
                 <div style={{ maxHeight: 200, overflowY: 'auto', background: 'var(--bg-primary)', borderRadius: 8, padding: 12, fontSize: '0.85rem' }}>
                   {subtitles.map((s, i) => (
                     <div key={i} style={{ padding: '4px 0', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}>

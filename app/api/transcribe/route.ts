@@ -11,7 +11,8 @@ export async function POST(req: NextRequest) {
     }
 
     const formData = await req.formData();
-    const file = formData.get('file') as File;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const file = (formData as any).get('file') as File | null;
 
     if (!file) {
       return NextResponse.json({ error: 'Keine Datei hochgeladen' }, { status: 400 });
@@ -27,6 +28,8 @@ export async function POST(req: NextRequest) {
       language: 'de',
       response_format: 'verbose_json',
       timestamp_granularities: ['segment'],
+      temperature: 0,
+      prompt: 'Hallo und herzlich willkommen. Dies ist eine deutsche Sendung. Bitte transkribieren Sie alles genau, einschließlich aller Wörter, Satzzeichen und Pausen.',
     });
 
     const subtitles = (response.segments || []).map((seg: { start: number; end: number; text: string }) => ({

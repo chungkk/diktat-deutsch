@@ -69,12 +69,13 @@ export async function POST(req: NextRequest) {
 
       // 2) Download audio only — use output template without extension,
       //    yt-dlp will add the correct extension after conversion
+      //    Quality 0 = best (important for Whisper accuracy — low quality causes word loss)
       const outputTemplate = join(tmpDir, 'audio');
       try {
         await runYtDlp([
           '--no-warnings',
           '-x', '--audio-format', 'mp3',
-          '--audio-quality', '5',
+          '--audio-quality', '0',
           '-o', `${outputTemplate}.%(ext)s`,
           videoUrl,
         ]);
@@ -128,6 +129,8 @@ export async function POST(req: NextRequest) {
           language: 'de',
           response_format: 'verbose_json',
           timestamp_granularities: ['segment'],
+          temperature: 0,
+          prompt: 'Hallo und herzlich willkommen. Dies ist eine deutsche Sendung. Bitte transkribieren Sie alles genau, einschließlich aller Wörter, Satzzeichen und Pausen.',
         });
 
         const subtitles = (response.segments || []).map((seg: { start: number; end: number; text: string }) => ({

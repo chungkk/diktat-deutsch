@@ -58,7 +58,7 @@ export default function LessonPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
   const [blankMode, setBlankMode] = useState<50 | 100>(100);
-  const [peekingIndex, setPeekingIndex] = useState<number | null>(null);
+  const [revealedWords, setRevealedWords] = useState<Set<string>>(new Set());
   const [videoBlurLevel, setVideoBlurLevel] = useState<0 | 1 | 2>(0); // 0=off, 1=light, 2=heavy
 
 
@@ -452,9 +452,15 @@ export default function LessonPage() {
     }
   };
 
-  // Peek: show answer while holding, hide on release
-  const startPeek = (subIdx: number) => setPeekingIndex(subIdx);
-  const stopPeek = () => setPeekingIndex(null);
+  // Double-click to reveal individual word
+  const revealWord = (subIdx: number, wordIdx: number) => {
+    const key = `${subIdx}-${wordIdx}`;
+    setRevealedWords(prev => {
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+  };
 
 
 
@@ -584,7 +590,6 @@ export default function LessonPage() {
           const subResults = blankResults[i] || {};
           const subInputs = blankInputs[i] || {};
           const allBlanksCorrect = blanks.size > 0 && Array.from(blanks).every(wi => subResults[wi] === 'correct');
-          const isPeeking = peekingIndex === i;
 
           return (
             <div
@@ -608,21 +613,6 @@ export default function LessonPage() {
                   <span className="sub-phase-badge sub-phase-diktat">✍️ Diktat</span>
                 )}
                 {isCompleted && <span className="sub-check">✓</span>}
-
-                {/* Peek button */}
-                {isActive && !isCompleted && (
-                  <button
-                    className={`sub-action-btn sub-action-hint ${peekingIndex === i ? 'sub-action-peeking' : ''}`}
-                    onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); startPeek(i); }}
-                    onMouseUp={stopPeek}
-                    onMouseLeave={stopPeek}
-                    onTouchStart={(e) => { e.stopPropagation(); startPeek(i); }}
-                    onTouchEnd={stopPeek}
-                    title="Gedrückt halten für Lösung"
-                  >
-                    👁
-                  </button>
-                )}
               </div>
 
               {/* Subtitle content — diktat cloze */}
@@ -652,23 +642,33 @@ export default function LessonPage() {
                         const cleanWord = word.replace(/[.,!?;:'"„"»«]/g, '');
                         const punct = word.slice(cleanWord.length);
 
-                        // Peeking — show all words revealed
-                        if (allBlanksCorrect || isPeeking) {
-                          return <span key={wi} className={`cloze-word ${isPeeking ? 'cloze-peek' : 'cloze-correct'}`}>{word}{' '}</span>;
+                        // All blanks correct — show all words revealed
+                        if (allBlanksCorrect) {
+                          return <span key={wi} className="cloze-word cloze-correct">{word}{' '}</span>;
                         }
 
-                        // Non-blank word in active row — show as ■ squares
+                        // Check if this individual word was revealed via double-click
+                        const isRevealed = revealedWords.has(`${i}-${wi}`);
+
+                        // Non-blank word in active row — show as ■ squares (double-click to reveal)
                         if (!isBlank) {
-                          return (
-                            <span key={wi} className="cloze-word cloze-square-box">
+                          return isRevealed ? (
+                            <span key={wi} className="cloze-word cloze-revealed">{word}{' '}</span>
+                          ) : (
+                            <span
+                              key={wi}
+                              className="cloze-word cloze-square-box"
+                              onDoubleClick={(e) => { e.stopPropagation(); revealWord(i, wi); }}
+                              title="Doppelklick zum Anzeigen"
+                            >
                               {cleanWord.replace(/./g, '■')}{punct}{' '}
                             </span>
                           );
                         }
 
-                        // Already correct blank
-                        if (result === 'correct') {
-                          return <span key={wi} className="cloze-word cloze-correct">{word}{' '}</span>;
+                        // Already correct blank or revealed via double-click
+                        if (result === 'correct' || isRevealed) {
+                          return <span key={wi} className={`cloze-word ${result === 'correct' ? 'cloze-correct' : 'cloze-revealed'}`}>{word}{' '}</span>;
                         }
 
                         // Active row blank — single input box per word
@@ -677,6 +677,7 @@ export default function LessonPage() {
                             key={wi}
                             className={`cloze-input-wrap ${result === 'incorrect' ? 'cloze-input-error' : ''}`}
                             onClick={(e) => { e.stopPropagation(); blankRefs.current[`${i}-${wi}`]?.focus(); }}
+                            onDoubleClick={(e) => { e.stopPropagation(); revealWord(i, wi); }}
                           >
                             <input
                               ref={el => { blankRefs.current[`${i}-${wi}`] = el; }}

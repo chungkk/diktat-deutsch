@@ -296,7 +296,7 @@ a:hover { @apply text-accent-hover; }
   box-shadow: 0 0 24px rgba(168,85,247,0.2), 0 2px 12px rgba(0,0,0,0.3);
 }
 .sub-row.sub-completed {
-  @apply opacity-65;
+  @apply opacity-85;
   background: rgba(14, 14, 14, 0.5);
 }
 .sub-row.sub-completed:hover { @apply opacity-100; }

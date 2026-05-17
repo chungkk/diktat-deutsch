@@ -458,6 +458,26 @@ export default function LessonPage() {
     setRevealedWords(prev => {
       const next = new Set(prev);
       next.add(key);
+
+      // Check if ALL words in this subtitle are now revealed or correctly answered
+      if (lesson && subTokens[subIdx]) {
+        const { words, blanks } = subTokens[subIdx];
+        const subResults = blankResults[subIdx] || {};
+        const allRevealed = words.every((_, wi) => {
+          // Word is revealed via double-click
+          if (next.has(`${subIdx}-${wi}`)) return true;
+          // Blank word answered correctly
+          if (blanks.has(wi) && subResults[wi] === 'correct') return true;
+          return false;
+        });
+
+        if (allRevealed && !completedIndices.includes(subIdx)) {
+          const newCompleted = [...completedIndices, subIdx];
+          setCompletedIndices(newCompleted);
+          saveProgress(subIdx, newCompleted, score, totalAttempts);
+        }
+      }
+
       return next;
     });
   };
@@ -627,12 +647,29 @@ export default function LessonPage() {
                         <span key={wi} className="cloze-word cloze-correct">{word}{' '}</span>
                       ))}</>
                     ) : !isActive ? (
-                      // Not active, not completed — show real text blurred
-                      <span className="sub-cloze-blurred">
-                        {words.map((word, wi) => (
-                          <span key={wi} className="cloze-word cloze-shadow-text">{word}{' '}</span>
-                        ))}
-                      </span>
+                      // Not active, not completed — check if any words were revealed
+                      (() => {
+                        const hasAnyRevealed = words.some((_, wi) => revealedWords.has(`${i}-${wi}`));
+                        if (hasAnyRevealed) {
+                          // Show revealed words clearly, rest blurred
+                          return <>{words.map((word, wi) => {
+                            const isWordRevealed = revealedWords.has(`${i}-${wi}`);
+                            const subResults_i = blankResults[i] || {};
+                            const isWordCorrect = blanks.has(wi) && subResults_i[wi] === 'correct';
+                            if (isWordRevealed || isWordCorrect) {
+                              return <span key={wi} className="cloze-word cloze-revealed">{word}{' '}</span>;
+                            }
+                            return <span key={wi} className="cloze-word sub-cloze-blurred">{word}{' '}</span>;
+                          })}</>;
+                        }
+                        return (
+                          <span className="sub-cloze-blurred">
+                            {words.map((word, wi) => (
+                              <span key={wi} className="cloze-word cloze-shadow-text">{word}{' '}</span>
+                            ))}
+                          </span>
+                        );
+                      })()
                     ) : (
                       // Active row — show cloze inputs
                       <>{words.map((word, wi) => {

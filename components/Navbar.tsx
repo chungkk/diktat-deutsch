@@ -2,9 +2,19 @@
 import Link from 'next/link';
 import { useSession, signOut } from 'next-auth/react';
 
+function getGreeting(): { text: string; emoji: string } {
+  const h = new Date().getHours();
+  if (h < 6) return { text: 'Gute Nacht', emoji: '🌙' };
+  if (h < 12) return { text: 'Guten Morgen', emoji: '☀️' };
+  if (h < 17) return { text: 'Guten Tag', emoji: '🌤️' };
+  if (h < 21) return { text: 'Guten Abend', emoji: '🌅' };
+  return { text: 'Gute Nacht', emoji: '🌙' };
+}
+
 export default function Navbar() {
   const { data: session } = useSession();
   const role = (session?.user as { role?: string })?.role;
+  const greeting = session ? getGreeting() : null;
 
   return (
     <nav className="navbar">
@@ -22,10 +32,8 @@ export default function Navbar() {
               </Link>
               <div className="navbar-dropdown">
                 <span className="navbar-user">
-                  <span className="navbar-user-avatar">
-                    {session.user?.name?.charAt(0)?.toUpperCase() || '🌟'}
-                  </span>
-                  {session.user?.name}
+                  <span className="navbar-greeting-emoji">{greeting?.emoji}</span>
+                  {greeting?.text}, <strong>{session.user?.name || 'Lerner'}</strong>!
                 </span>
                 <div className="navbar-dropdown-menu">
                   {role === 'admin' && (

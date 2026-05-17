@@ -215,25 +215,6 @@ export default function HomePage() {
 
   return (
     <div className="home-page">
-      {/* Hero Section */}
-      <div className="home-hero">
-        <div className="container">
-          <div className="home-hero-content">
-            <div className="home-hero-greeting">
-              <span className="home-hero-greeting-emoji">{greeting.emoji}</span>
-              <span className="home-hero-greeting-text">
-                {greeting.text}, <strong>{session?.user?.name || 'Lerner'}</strong>!
-              </span>
-            </div>
-            <h1 className="home-hero-title">
-              Bereit zum <span className="home-hero-accent">Deutschlernen</span>? 🎯
-            </h1>
-            <p className="home-hero-subtitle">
-              Höre zu, schreibe mit, und werde besser — Schritt für Schritt! 🚀
-            </p>
-          </div>
-        </div>
-      </div>
 
       {/* Lesson Grid */}
       <div className="container">

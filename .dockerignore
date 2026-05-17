@@ -1,0 +1,10 @@
+# React Native mobile app (separate project)
+shadowing-de/
+
+# Git
+.git/
+
+# Dev files
+.env.local
+.env*.local
+README.md

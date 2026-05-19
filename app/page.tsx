@@ -118,21 +118,54 @@ export default function HomePage() {
   const { data: session, status } = useSession();
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [progress, setProgress] = useState<Progress[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [lessonsReady, setLessonsReady] = useState(false);
+  const [progressReady, setProgressReady] = useState(false);
   const router = useRouter();
 
   const fetchData = useCallback(() => {
     if (status !== 'authenticated') return;
-    Promise.all([
-      fetch('/api/lessons', { cache: 'no-store' }).then(r => r.json()),
-      fetch('/api/progress', { cache: 'no-store' }).then(r => r.json()),
-    ]).then(([lessonsData, progressData]) => {
-      const sorted = (lessonsData as Lesson[]).sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      );
-      setLessons(sorted);
-      setProgress(Array.isArray(progressData) ? progressData : []);
-      setLoading(false);
+
+    const fetchLessons = async () => {
+      try {
+        const r = await fetch('/api/lessons', { cache: 'no-store' });
+        if (!r.ok) return null;
+        const data = await r.json();
+        return Array.isArray(data) ? (data as Lesson[]) : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const fetchProgress = async (retries = 2): Promise<Progress[] | null> => {
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+          const r = await fetch('/api/progress', { cache: 'no-store' });
+          if (r.ok) {
+            const data = await r.json();
+            if (Array.isArray(data)) return data as Progress[];
+          }
+        } catch {
+          // ignore and retry
+        }
+        if (attempt < retries) {
+          await new Promise(res => setTimeout(res, 400 * (attempt + 1)));
+        }
+      }
+      return null;
+    };
+
+    Promise.all([fetchLessons(), fetchProgress()]).then(([lessonsData, progressData]) => {
+      if (lessonsData) {
+        const sorted = [...lessonsData].sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+        setLessons(sorted);
+        setLessonsReady(true);
+      }
+      if (progressData) {
+        setProgress(progressData);
+        setProgressReady(true);
+      }
     });
   }, [status]);
 
@@ -167,7 +200,7 @@ export default function HomePage() {
     });
   };
 
-  if (status === 'loading' || loading) {
+  if (status === 'loading' || !lessonsReady || !progressReady) {
     return (
       <div className="loading">
         <div className="loading-cute">

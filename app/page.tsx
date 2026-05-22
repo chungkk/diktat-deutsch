@@ -270,7 +270,15 @@ export default function HomePage() {
               </span>
             </div>
             <div className="home-grid">
-              {lessons.map((lesson, idx) => {
+              {lessons
+                .map((lesson, idx) => ({ lesson, idx }))
+                .sort((a, b) => {
+                  const aCompleted = !!getProgress(a.lesson._id)?.isCompleted;
+                  const bCompleted = !!getProgress(b.lesson._id)?.isCompleted;
+                  if (aCompleted !== bCompleted) return aCompleted ? 1 : -1;
+                  return a.idx - b.idx;
+                })
+                .map(({ lesson, idx }) => {
                 const prog = getProgress(lesson._id);
                 const totalSubs = lesson.subtitles?.length || 0;
                 const completed = prog?.completedIndices?.length || 0;

@@ -27,20 +27,48 @@ function tokenize(text: string): string[] {
   return text.replace(/\n/g, ' ').split(/\s+/).filter(Boolean);
 }
 
+// Strip attached punctuation to get the bare word
+function bareWord(w: string): string {
+  return w.replace(/^[.,!?;:'"„"»«…–-]+|[.,!?;:'"„"»«…–-]+$/g, '');
+}
+
+// A token is "real" if it has at least 2 letters after stripping punctuation
+function isRealWord(w: string): boolean {
+  return bareWord(w).length >= 2;
+}
+
 // Decide which word indices should be blanks
 function pickBlanks(words: string[], seed: number, mode: 50 | 100): Set<number> {
   const blanks = new Set<number>();
+
+  // Count real words in this subtitle
+  const realWordIndices = words
+    .map((w, i) => ({ w, i }))
+    .filter(({ w }) => isRealWord(w))
+    .map(({ i }) => i);
+
+  // Sentences with 0 or 1 real word → show as-is, no blanks
+  if (realWordIndices.length <= 1) return blanks;
+
   if (mode === 100) {
-    words.forEach((_, i) => blanks.add(i));
+    // Blank every REAL word — never blank punctuation-only tokens
+    realWordIndices.forEach(i => blanks.add(i));
     return blanks;
   }
-  for (let i = 0; i < words.length; i++) {
-    if (words[i].replace(/[.,!?;:'"„"»«]/g, '').length <= 2) continue;
+
+  // Mode 50%: alternate real words based on seed
+  for (const i of realWordIndices) {
     if ((seed + i) % 2 === 0) blanks.add(i);
   }
-  if (blanks.size === 0 && words.length > 0) blanks.add(0);
+
+  // Ensure at least one blank exists
+  if (blanks.size === 0 && realWordIndices.length > 0) {
+    blanks.add(realWordIndices[0]);
+  }
+
   return blanks;
 }
+
 
 export default function LessonPage() {
   const { slug } = useParams();

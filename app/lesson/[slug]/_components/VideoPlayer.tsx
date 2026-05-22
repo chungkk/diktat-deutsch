@@ -1,5 +1,4 @@
 'use client';
-import { useRef, useCallback, useEffect, RefObject } from 'react';
 
 interface VideoPlayerProps {
   videoType: 'youtube' | 'local';

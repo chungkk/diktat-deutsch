@@ -44,7 +44,7 @@ function pickBlanks(words: string[], seed: number, mode: 50 | 100): Set<number> 
 
 export default function LessonPage() {
   const { slug } = useParams();
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
 
   const [lesson, setLesson] = useState<LessonData | null>(null);
@@ -82,7 +82,8 @@ export default function LessonPage() {
     });
   }, [lesson, blankMode]);
 
-  // Reset inputs when mode changes
+  // Reset inputs when mode changes (intentional setState in effect)
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     setBlankInputs({});
     setBlankResults({});

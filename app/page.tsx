@@ -27,21 +27,31 @@ interface Progress {
 }
 
 const LEVEL_COLORS: Record<string, string> = {
-  A1: '#00b894',
-  A2: '#00cec9',
-  B1: '#6c5ce7',
+  A1: '#22c55e',
+  A2: '#14b8a6',
+  B1: '#38bdf8',
   B2: '#a855f7',
-  C1: '#fd79a8',
-  C2: '#e17055',
+  C1: '#f472b6',
+  C2: '#fb923c',
+};
+
+// Cartoon shadow color for each level (darker shade)
+const LEVEL_SHADOWS: Record<string, string> = {
+  A1: '#15803d',
+  A2: '#0f766e',
+  B1: '#0369a1',
+  B2: '#7e22ce',
+  C1: '#be185d',
+  C2: '#c2410c',
 };
 
 const LEVEL_EMOJI: Record<string, string> = {
   A1: '🌱',
-  A2: '🌿',
-  B1: '🌸',
-  B2: '💜',
-  C1: '🔥',
-  C2: '⭐',
+  A2: '🌊',
+  B1: '💧',
+  B2: '⚡',
+  C1: '🌸',
+  C2: '🔥',
 };
 
 function formatDuration(seconds: number): string {
@@ -50,56 +60,33 @@ function formatDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const days = Math.floor(diff / 86400000);
-  if (days === 0) return 'Heute';
-  if (days === 1) return 'Gestern';
-  if (days < 7) return `Vor ${days} Tagen`;
-  if (days < 30) return `Vor ${Math.floor(days / 7)} Wochen`;
-  return `Vor ${Math.floor(days / 30)} Monaten`;
-}
+
 
 // Circular progress ring component
-function ProgressRing({ pct, size = 44, stroke = 3.5 }: { pct: number; size?: number; stroke?: number }) {
+function ProgressRing({ pct, size = 44, stroke = 3.5, levelColor }: { pct: number; size?: number; stroke?: number; levelColor?: string }) {
   const radius = (size - stroke) / 2;
   const circ = 2 * Math.PI * radius;
   const offset = circ - (pct / 100) * circ;
-
-  const color = pct >= 100 ? 'var(--success)' : 'var(--accent)';
+  const color = pct >= 90 ? '#4ade80' : (levelColor || '#22c55e');
 
   return (
     <svg width={size} height={size} style={{ flexShrink: 0 }}>
       <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        fill="none"
-        stroke="rgba(255,255,255,0.15)"
-        strokeWidth={stroke}
+        cx={size / 2} cy={size / 2} r={radius}
+        fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={stroke}
       />
       <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        fill="none"
-        stroke={color}
-        strokeWidth={stroke}
-        strokeDasharray={circ}
-        strokeDashoffset={offset}
+        cx={size / 2} cy={size / 2} r={radius}
+        fill="none" stroke={color} strokeWidth={stroke + 0.5}
+        strokeDasharray={circ} strokeDashoffset={offset}
         strokeLinecap="round"
         transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        style={{ transition: 'stroke-dashoffset 0.6s ease', filter: `drop-shadow(0 0 3px ${pct >= 100 ? 'var(--success)' : 'var(--accent)'})` }}
+        style={{ transition: 'stroke-dashoffset 0.6s ease', filter: `drop-shadow(0 0 4px ${color}99)` }}
       />
       <text
-        x="50%"
-        y="50%"
-        textAnchor="middle"
-        dominantBaseline="central"
-        fill="#ffffff"
-        fontSize={size * 0.3}
-        fontWeight="700"
-        fontFamily="Inter, sans-serif"
+        x="50%" y="50%" textAnchor="middle" dominantBaseline="central"
+        fill="#ffffff" fontSize={size * 0.28} fontWeight="900"
+        fontFamily="Nunito, sans-serif"
       >
         {pct}%
       </text>
@@ -111,13 +98,14 @@ function getGreeting(): { text: string; emoji: string } {
   const h = new Date().getHours();
   if (h < 6) return { text: 'Gute Nacht', emoji: '🌙' };
   if (h < 12) return { text: 'Guten Morgen', emoji: '☀️' };
-  if (h < 17) return { text: 'Guten Tag', emoji: '🌤️' };
+  if (h < 17) return { text: 'Guten Tag', emoji: '🍄️' };
   if (h < 21) return { text: 'Guten Abend', emoji: '🌅' };
   return { text: 'Gute Nacht', emoji: '🌙' };
 }
 
 export default function HomePage() {
   const { data: session, status } = useSession();
+  const userName = (session?.user?.name || 'Lerner').split(' ')[0];
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [progress, setProgress] = useState<Progress[]>([]);
   const [lessonsReady, setLessonsReady] = useState(false);
@@ -207,8 +195,13 @@ export default function HomePage() {
     return (
       <div className="loading">
         <div className="loading-cute">
-          <div className="spinner" />
-          <span className="loading-text">Lade deine Lektionen... ✨</span>
+          <span className="loading-mascot">🇩🇪</span>
+          <div className="loading-dots">
+            <div className="loading-dot" />
+            <div className="loading-dot" />
+            <div className="loading-dot" />
+          </div>
+          <span className="loading-text">Lektionen werden geladen…</span>
         </div>
       </div>
     );
@@ -249,16 +242,19 @@ export default function HomePage() {
 
   const greeting = getGreeting();
 
+  const newestLessonId = lessons.length > 0 ? lessons[lessons.length - 1]._id : null;
+
   return (
     <div className="home-page">
 
       {/* Lesson Grid */}
+
       <div className="container">
         {lessons.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-state-icon">📭</div>
+            <span className="empty-state-icon">🌱</span>
             <p className="empty-state-text">Noch keine Lektionen verfügbar</p>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: 8 }}>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', marginTop: 8, fontWeight: 700 }}>
               Erstelle deine erste Lektion im Admin-Bereich ✨
             </p>
           </div>
@@ -294,11 +290,19 @@ export default function HomePage() {
                 const completed = prog?.completedIndices?.length || 0;
                 const pct = totalSubs > 0 ? Math.round((completed / totalSubs) * 100) : 0;
                 const thumb = getThumbnail(lesson);
-                const levelColor = LEVEL_COLORS[lesson.level] || 'var(--accent)';
+                const levelColor = LEVEL_COLORS[lesson.level] || '#22c55e';
+                const levelShadow = LEVEL_SHADOWS[lesson.level] || '#15803d';
                 const levelEmoji = LEVEL_EMOJI[lesson.level] || '📝';
+                const isNewest = lesson._id === newestLessonId && !isLocked;
 
                 const cardContent = (
-                  <article className={`home-card ${isLocked ? 'home-card-locked' : ''}`}>
+                  <article
+                    className={`home-card ${isLocked ? 'home-card-locked' : ''}`}
+                    style={isLocked ? {} : {
+                      '--card-glow-color': levelColor,
+                      '--card-shadow-color': levelShadow,
+                    } as React.CSSProperties}
+                  >
                     {/* Thumbnail */}
                     <div className="home-card-thumb">
                       {thumb ? (
@@ -321,18 +325,35 @@ export default function HomePage() {
                       <span
                         className="home-card-level"
                         style={{
-                          background: isLocked ? '#555' : levelColor,
-                          boxShadow: isLocked ? 'none' : `0 2px 12px ${levelColor}44`,
+                          background: isLocked ? 'rgba(255,255,255,0.12)' : levelColor,
+                          borderColor: isLocked ? 'rgba(255,255,255,0.15)' : levelShadow,
+                          boxShadow: isLocked ? 'none' : `2px 2px 0 ${levelShadow}`,
+                          left: isNewest ? '2.5rem' : '0.625rem',
                         }}
                       >
                         {levelEmoji} {lesson.level}
                       </span>
 
+                      {/* NEW badge */}
+                      {isNewest && (
+                        <span className="home-card-new-badge">✨ NEU</span>
+                      )}
+
                       {/* Lock overlay */}
                       {isLocked && (
                         <div className="home-card-lock-overlay">
-                          <span className="lock-icon-cute">🔒</span>
-                          <span>Lektion {idx} abschließen</span>
+                          <div className="home-card-lock-overlay-inner">
+                            <span className="lock-icon-cute">🔒</span>
+                            <span>Lektion {idx} abschließen</span>
+                            {idx > 0 && (
+                              <div className="home-card-lock-prev-progress">
+                                <div
+                                  className="home-card-lock-prev-fill"
+                                  style={{ width: `${getLessonPct(lessons[idx - 1]?._id, lessons[idx - 1]?.subtitles?.length || 0)}%` }}
+                                />
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
 
@@ -358,25 +379,28 @@ export default function HomePage() {
                       </div>
 
                       {/* Progress section */}
-                      {!isLocked && (
-                        <div className="home-card-footer">
-                          <div className="home-card-progress-info">
-                            <div className="home-card-progress-bar">
-                              <div
-                                className="home-card-progress-fill"
-                                style={{
-                                  width: `${pct}%`,
-                                  background: pct >= 100 ? 'var(--success)' : 'var(--gradient-1)',
-                                }}
-                              />
+                        {!isLocked && (
+                          <div className="home-card-footer">
+                            <div className="home-card-progress-info">
+                              <div className="home-card-progress-bar">
+                                <div
+                                  className="home-card-progress-fill"
+                                  style={{
+                                    width: `${pct}%`,
+                                    background: pct >= 90
+                                      ? `linear-gradient(90deg, ${levelColor} 0%, #a3e635 100%)`
+                                      : `linear-gradient(90deg, ${levelColor} 0%, ${levelShadow} 100%)`,
+                                    boxShadow: `0 0 6px ${levelColor}66`,
+                                  }}
+                                />
+                              </div>
+                              <span className="home-card-progress-text">
+                                {completed}/{totalSubs} ✍️
+                              </span>
                             </div>
-                            <span className="home-card-progress-text">
-                              {completed}/{totalSubs}
-                            </span>
+                            <ProgressRing pct={pct} size={42} stroke={3} levelColor={levelColor} />
                           </div>
-                          <ProgressRing pct={pct} size={42} stroke={3} />
-                        </div>
-                      )}
+                        )}
                     </div>
                   </article>
                 );

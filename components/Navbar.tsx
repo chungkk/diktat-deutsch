@@ -6,7 +6,7 @@ function getGreeting(): { text: string; emoji: string } {
   const h = new Date().getHours();
   if (h < 6) return { text: 'Gute Nacht', emoji: '🌙' };
   if (h < 12) return { text: 'Guten Morgen', emoji: '☀️' };
-  if (h < 17) return { text: 'Guten Tag', emoji: '🌤️' };
+  if (h < 17) return { text: 'Guten Tag', emoji: '🌿' };
   if (h < 21) return { text: 'Guten Abend', emoji: '🌅' };
   return { text: 'Gute Nacht', emoji: '🌙' };
 }
@@ -15,25 +15,38 @@ export default function Navbar() {
   const { data: session } = useSession();
   const role = (session?.user as { role?: string })?.role;
   const greeting = session ? getGreeting() : null;
+  const firstName = session?.user?.name?.split(' ')[0] || 'Lerner';
+  const initials = (session?.user?.name || 'L')
+    .split(' ')
+    .map((w: string) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <nav className="navbar">
       <div className="container">
         <Link href="/" className="navbar-brand">
-          <span className="navbar-logo-icon">✨</span>
+          <span className="navbar-logo-icon">🌱</span>
           Diktat Deutsch
           <span className="navbar-brand-sparkle">🇩🇪</span>
         </Link>
+
         <div className="navbar-links">
           {session ? (
             <>
               <Link href="/">
-                <span className="nav-icon">📚</span> Lektionen
+                <span className="nav-icon">📖</span> Lektionen
               </Link>
+              <Link href="/podcast">
+                <span className="nav-icon">🎧</span> Podcast
+              </Link>
+
               <div className="navbar-dropdown">
                 <span className="navbar-user">
+                  <span className="navbar-user-avatar">{initials}</span>
                   <span className="navbar-greeting-emoji">{greeting?.emoji}</span>
-                  {greeting?.text}, <strong>{session.user?.name || 'Lerner'}</strong>!
+                  {firstName}
                 </span>
                 <div className="navbar-dropdown-menu">
                   {role === 'admin' && (
@@ -44,6 +57,7 @@ export default function Navbar() {
                   <Link href="/support" className="navbar-dropdown-item">
                     <span className="nav-icon">💌</span> Support
                   </Link>
+                  <div className="navbar-dropdown-divider" />
                   <button
                     className="navbar-dropdown-item"
                     onClick={() => signOut()}

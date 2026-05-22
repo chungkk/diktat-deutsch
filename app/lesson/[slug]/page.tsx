@@ -533,6 +533,7 @@ export default function LessonPage() {
             )}
           </div>
 
+          <button className="lesson-back-btn" onClick={() => router.push('/')}>← Zurück</button>
           <h1 className="lesson-split-title">{lesson.title}</h1>
           <p className="lesson-split-meta">
             <span className="lesson-level">{lesson.level}</span>
@@ -588,14 +589,7 @@ export default function LessonPage() {
             </button>
           </div>
 
-          <div className="lesson-shortcuts">
-            <kbd>Space</kbd> Wiederholen
-            <kbd>←</kbd> -2s
-            <kbd>→</kbd> +2s
-            <kbd>↑↓</kbd> Chuyển câu
-            <kbd>Tab</kbd> Zwischen Feldern
-            <kbd>B</kbd> Video Blur
-          </div>
+
         </div>
       </div>
 

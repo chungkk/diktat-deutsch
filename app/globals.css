@@ -183,7 +183,7 @@ a:hover { @apply text-accent-hover; }
 
 /* ═══ DIKTAT SPLIT LAYOUT ═══ */
 .lesson-split {
-  @apply grid grid-cols-[2fr_3fr] gap-0 min-h-[calc(100vh-65px)];
+  @apply grid grid-cols-[2fr_3fr] gap-0 min-h-screen;
 }
 .lesson-left { @apply p-6 border-r border-border; }
 .lesson-left-sticky { @apply sticky top-20; }
@@ -222,10 +222,10 @@ a:hover { @apply text-accent-hover; }
 
 /* Video blur toggle button */
 .video-blur-toggle {
-  @apply mb-4;
+  @apply mb-4 bg-bg-card border border-border rounded-lg py-3.5 px-4;
 }
 .video-blur-btn {
-  @apply flex items-center gap-2.5 w-full py-2.5 px-4 bg-bg-input border border-border rounded-lg text-text-secondary text-sm font-semibold font-sans cursor-pointer transition-all duration-300;
+  @apply flex items-center gap-2.5 w-full py-1 px-0 bg-transparent border-none rounded-lg text-text-secondary text-sm font-semibold font-sans cursor-pointer transition-all duration-300;
 }
 .video-blur-btn:hover {
   @apply border-accent/50 text-text-primary;
@@ -257,6 +257,11 @@ a:hover { @apply text-accent-hover; }
   @apply bg-accent/20 text-accent border-accent/40;
 }
 
+.lesson-back-btn {
+  @apply text-xs text-text-muted font-medium bg-transparent border-none cursor-pointer mb-3 px-0 py-1 font-sans;
+  transition: color 0.2s;
+}
+.lesson-back-btn:hover { @apply text-text-primary; }
 .lesson-split-title { @apply text-xl font-semibold mb-2 leading-snug; }
 .lesson-split-meta { @apply flex items-center gap-3 text-text-secondary text-xs mb-5; }
 .lesson-progress-section {
@@ -267,7 +272,7 @@ a:hover { @apply text-accent-hover; }
 .lesson-progress-track { @apply h-1.5 bg-border rounded-sm overflow-hidden; }
 
 /* ═══ MODE TOGGLE ═══ */
-.mode-toggle { @apply mb-4; }
+.mode-toggle { @apply mb-4 bg-bg-card border border-border rounded-lg py-3.5 px-4; }
 .mode-label { @apply block text-xs text-text-secondary mb-2 font-medium; }
 .mode-buttons { @apply flex rounded-lg overflow-hidden border border-border; }
 .mode-btn {
@@ -279,13 +284,13 @@ a:hover { @apply text-accent-hover; }
 .mode-btn-active:hover { @apply bg-accent-hover text-white; }
 
 /* ═══ SHORTCUTS ═══ */
-.lesson-shortcuts { @apply flex flex-wrap gap-2 items-center text-[0.75rem] text-text-muted; }
+.lesson-shortcuts { @apply flex flex-wrap gap-2 items-center text-[0.75rem] text-text-muted bg-bg-card border border-border rounded-lg py-3 px-4; }
 .lesson-shortcuts kbd {
   @apply bg-bg-card border border-border py-0.5 px-2 rounded text-[0.7rem] font-sans text-text-primary mr-0.5;
 }
 
 /* ═══ SUBTITLE LIST ═══ */
-.lesson-right { @apply p-4 overflow-y-auto max-h-[calc(100vh-65px)]; }
+.lesson-right { @apply p-4 overflow-y-auto max-h-screen; }
 .sub-row {
   @apply border border-border rounded-xl py-3.5 px-4 mb-2.5 cursor-pointer transition-all duration-200;
   background: rgba(17, 17, 17, 0.7);

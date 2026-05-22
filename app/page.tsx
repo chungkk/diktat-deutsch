@@ -96,8 +96,8 @@ function ProgressRing({ pct, size = 44, stroke = 3.5 }: { pct: number; size?: nu
         y="50%"
         textAnchor="middle"
         dominantBaseline="central"
-        fill="var(--text-primary)"
-        fontSize={size * 0.26}
+        fill="#ffffff"
+        fontSize={size * 0.3}
         fontWeight="700"
         fontFamily="Inter, sans-serif"
       >
@@ -366,10 +366,10 @@ export default function HomePage() {
                               />
                             </div>
                             <span className="home-card-progress-text">
-                              {pct >= 100 ? '🎊 ' : '📝 '}{completed}/{totalSubs}
+                              {completed}/{totalSubs}
                             </span>
                           </div>
-                          <ProgressRing pct={pct} size={36} stroke={3} />
+                          <ProgressRing pct={pct} size={42} stroke={3} />
                         </div>
                       )}
                     </div>

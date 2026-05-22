@@ -685,11 +685,12 @@ export default function LessonPage() {
                         // Check if this individual word was revealed via double-click
                         const isRevealed = revealedWords.has(`${i}-${wi}`);
 
-                        // Non-blank word in active row — show as ■ squares (double-click to reveal)
+                        // Non-blank word in active row
                         if (!isBlank) {
-                          return isRevealed ? (
-                            <span key={wi} className="cloze-word cloze-revealed">{word}{' '}</span>
-                          ) : (
+                          if (blankMode === 50 || isRevealed) {
+                            return <span key={wi} className="cloze-word cloze-revealed">{word}{' '}</span>;
+                          }
+                          return (
                             <span
                               key={wi}
                               className="cloze-word cloze-square-box"

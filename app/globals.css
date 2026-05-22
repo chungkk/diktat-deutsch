@@ -183,10 +183,10 @@ a:hover { @apply text-accent-hover; }
 
 /* ═══ DIKTAT SPLIT LAYOUT ═══ */
 .lesson-split {
-  @apply grid grid-cols-[2fr_3fr] gap-0 min-h-screen;
+  @apply grid grid-cols-[2fr_3fr] gap-0 flex-1 overflow-hidden;
 }
-.lesson-left { @apply p-6 border-r border-border; }
-.lesson-left-sticky { @apply sticky top-20; }
+.lesson-left { @apply p-5 border-r border-border overflow-y-auto; }
+.lesson-left-sticky { }
 .video-wrapper {
   @apply relative w-full pt-[56.25%] rounded-xl overflow-hidden bg-black mb-5 border border-border;
 }
@@ -257,13 +257,21 @@ a:hover { @apply text-accent-hover; }
   @apply bg-accent/20 text-accent border-accent/40;
 }
 
-.lesson-back-btn {
-  @apply text-xs text-text-muted font-medium bg-transparent border-none cursor-pointer mb-3 px-0 py-1 font-sans;
-  transition: color 0.2s;
+.lesson-page { @apply flex flex-col h-screen; }
+.lesson-header {
+  @apply flex items-center gap-4 px-5 py-2.5 border-b border-border bg-bg-card;
+  flex-shrink: 0;
 }
-.lesson-back-btn:hover { @apply text-text-primary; }
-.lesson-split-title { @apply text-xl font-semibold mb-2 leading-snug; }
-.lesson-split-meta { @apply flex items-center gap-3 text-text-secondary text-xs mb-5; }
+.lesson-back-btn {
+  @apply text-xs text-text-secondary font-semibold py-1.5 px-3 rounded-md border border-border bg-bg-input cursor-pointer font-sans;
+  transition: all 0.2s ease;
+}
+.lesson-back-btn:hover {
+  @apply text-text-primary border-accent/50;
+  background: rgba(168,85,247,0.08);
+}
+.lesson-header-title { @apply text-sm font-semibold truncate flex-1; }
+.lesson-header-meta { @apply flex items-center gap-3 text-text-secondary text-xs; }
 .lesson-progress-section {
   @apply bg-bg-card border border-border rounded-lg py-3.5 px-4 mb-4;
 }
@@ -290,7 +298,7 @@ a:hover { @apply text-accent-hover; }
 }
 
 /* ═══ SUBTITLE LIST ═══ */
-.lesson-right { @apply p-4 overflow-y-auto max-h-screen; }
+.lesson-right { @apply p-4 overflow-y-auto; }
 .sub-row {
   @apply border border-border rounded-xl py-3.5 px-4 mb-2.5 cursor-pointer transition-all duration-200;
   background: rgba(17, 17, 17, 0.7);

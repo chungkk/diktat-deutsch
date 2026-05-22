@@ -502,7 +502,17 @@ export default function LessonPage() {
   const pct = totalSubs > 0 ? Math.round((completedIndices.length / totalSubs) * 100) : 0;
 
   return (
-    <div className="lesson-split">
+    <div className="lesson-page">
+      <header className="lesson-header">
+        <button className="lesson-back-btn" onClick={() => router.push('/')}>← Zurück</button>
+        <h1 className="lesson-header-title">{lesson.title}</h1>
+        <div className="lesson-header-meta">
+          <span className="lesson-level">{lesson.level}</span>
+          <span>{totalSubs} Sätze</span>
+          <span>{isPlaying ? '▶ Spielt' : '⏸ Pausiert'}</span>
+        </div>
+      </header>
+      <div className="lesson-split">
       {/* LEFT: Video + Controls */}
       <div className="lesson-left">
         <div className="lesson-left-sticky">
@@ -533,13 +543,7 @@ export default function LessonPage() {
             )}
           </div>
 
-          <button className="lesson-back-btn" onClick={() => router.push('/')}>← Zurück</button>
-          <h1 className="lesson-split-title">{lesson.title}</h1>
-          <p className="lesson-split-meta">
-            <span className="lesson-level">{lesson.level}</span>
-            <span>{totalSubs} Sätze</span>
-            <span>{isPlaying ? '▶ Spielt' : '⏸ Pausiert'}</span>
-          </p>
+
 
           <div className="lesson-progress-section">
             <div className="lesson-progress-header">
@@ -734,6 +738,7 @@ export default function LessonPage() {
           );
         })}
       </div>
+    </div>
     </div>
   );
 }

@@ -443,27 +443,54 @@ export default function LessonPage() {
   // Double-click to reveal individual word
   const revealWord = (subIdx: number, wordIdx: number) => {
     const key = `${subIdx}-${wordIdx}`;
-    setRevealedWords(prev => {
-      const next = new Set(prev);
-      next.add(key);
-      if (lesson && subTokens[subIdx]) {
-        const { words, blanks } = subTokens[subIdx];
-        const subResults = blankResults[subIdx] || {};
-        const allRevealed = words.every((_, wi) => {
-          if (!blanks.has(wi)) return true;                          // visible word (not a blank) — always ok
-          if (next.has(`${subIdx}-${wi}`)) return true;             // blank was revealed
-          if (subResults[wi] === 'correct') return true;            // blank was typed correctly
-          return false;
-        });
-        if (allRevealed && !completedIndicesRef.current.includes(subIdx)) {
-          const newCompleted = [...completedIndicesRef.current, subIdx];
-          completedIndicesRef.current = newCompleted;
-          setCompletedIndices(newCompleted);
-          saveProgress(newCompleted, score, totalAttempts);
-        }
+    
+    const nextRevealed = new Set(revealedWords);
+    nextRevealed.add(key);
+    setRevealedWords(nextRevealed);
+
+    if (lesson && subTokens[subIdx]) {
+      const { words, blanks } = subTokens[subIdx];
+      const subResults = blankResults[subIdx] || {};
+      const allRevealed = words.every((_, wi) => {
+        if (!blanks.has(wi)) return true;                          // visible word (not a blank) — always ok
+        if (nextRevealed.has(`${subIdx}-${wi}`)) return true;             // blank was revealed
+        if (subResults[wi] === 'correct') return true;            // blank was typed correctly
+        return false;
+      });
+
+      if (allRevealed && !completedIndicesRef.current.includes(subIdx)) {
+        const newCompleted = [...completedIndicesRef.current, subIdx];
+        completedIndicesRef.current = newCompleted;
+        setCompletedIndices(newCompleted);
+
+        // Increment attempts to reflect completion without score increase
+        const newAttempts = totalAttempts + 1;
+        setTotalAttempts(newAttempts);
+
+        // Mark all as correct internally for consistency
+        const sortedBlanks = Array.from(blanks).sort((a, b) => a - b);
+        const allResults: Record<number, 'correct' | 'incorrect'> = {};
+        sortedBlanks.forEach(wi => { allResults[wi] = 'correct'; });
+        setBlankResults(prev => ({ ...prev, [subIdx]: allResults }));
+
+        saveProgress(newCompleted, score, newAttempts);
+
+        // Auto advance to next subtitle
+        setTimeout(() => {
+          if (subIdx < lesson.subtitles.length - 1) {
+            const next = subIdx + 1;
+            setCurrentIndex(next);
+            seekToSubtitle(next);
+            setTimeout(() => {
+              if (subTokens[next]) {
+                const firstBlank = Array.from(subTokens[next].blanks).sort((a, b) => a - b)[0];
+                if (firstBlank !== undefined) blankRefs.current[`${next}-${firstBlank}`]?.focus();
+              }
+            }, 150);
+          }
+        }, 600);
       }
-      return next;
-    });
+    }
   };
 
   if (status === 'loading' || loading) {

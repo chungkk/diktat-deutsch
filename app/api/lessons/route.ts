@@ -35,8 +35,23 @@ export async function POST(req: NextRequest) {
     await dbConnect();
 
     const { title, description, level, videoType, youtubeId, videoUrl, subtitles, isPublished, thumbnail, duration } = body;
+
+    // Validate required fields
+    if (!title || typeof title !== 'string' || !title.trim()) {
+      return NextResponse.json({ error: 'Titel ist erforderlich' }, { status: 400 });
+    }
+    if (!videoType || !['youtube', 'local'].includes(videoType)) {
+      return NextResponse.json({ error: 'Ungültiger Videotyp' }, { status: 400 });
+    }
+    if (videoType === 'youtube' && !youtubeId) {
+      return NextResponse.json({ error: 'YouTube-ID ist erforderlich' }, { status: 400 });
+    }
+    if (videoType === 'local' && !videoUrl) {
+      return NextResponse.json({ error: 'Video-URL ist erforderlich' }, { status: 400 });
+    }
+
     const lesson = new Lesson({
-      title, description, level, videoType, youtubeId, videoUrl, subtitles, isPublished, thumbnail, duration,
+      title: title.trim(), description, level, videoType, youtubeId, videoUrl, subtitles, isPublished, thumbnail, duration,
     });
     await lesson.save();
     return NextResponse.json(lesson, { status: 201 });

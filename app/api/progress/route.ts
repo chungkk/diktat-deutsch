@@ -44,16 +44,24 @@ export async function POST(req: NextRequest) {
     const { lessonId, currentIndex, completedIndices, score, totalAttempts, isCompleted } = await req.json();
     const userId = (session.user as { id?: string })?.id;
 
+    // Validate required fields
+    if (!lessonId) {
+      return NextResponse.json({ error: 'lessonId fehlt' }, { status: 400 });
+    }
+    if (!Array.isArray(completedIndices)) {
+      return NextResponse.json({ error: 'completedIndices muss ein Array sein' }, { status: 400 });
+    }
+
     await dbConnect();
 
     const progress = await Progress.findOneAndUpdate(
       { userId, lessonId },
       {
-        currentIndex,
+        currentIndex: Math.max(0, Number(currentIndex) || 0),
         completedIndices,
-        score,
-        totalAttempts,
-        isCompleted,
+        score: Math.max(0, Number(score) || 0),
+        totalAttempts: Math.max(0, Number(totalAttempts) || 0),
+        isCompleted: Boolean(isCompleted),
         lastAccessedAt: new Date(),
       },
       { upsert: true, new: true }

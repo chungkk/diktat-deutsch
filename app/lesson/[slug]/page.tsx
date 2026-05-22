@@ -2,6 +2,9 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
+import VideoPlayer from './_components/VideoPlayer';
+import LessonProgress from './_components/LessonProgress';
+import ClozeRow from './_components/ClozeRow';
 
 interface Subtitle {
   start: number;
@@ -28,11 +31,9 @@ function tokenize(text: string): string[] {
 function pickBlanks(words: string[], seed: number, mode: 50 | 100): Set<number> {
   const blanks = new Set<number>();
   if (mode === 100) {
-    // All words are blanks
     words.forEach((_, i) => blanks.add(i));
     return blanks;
   }
-  // 50% mode: skip short words
   for (let i = 0; i < words.length; i++) {
     if (words[i].replace(/[.,!?;:'"„"»«]/g, '').length <= 2) continue;
     if ((seed + i) % 2 === 0) blanks.add(i);
@@ -48,9 +49,7 @@ export default function LessonPage() {
 
   const [lesson, setLesson] = useState<LessonData | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
-  // blankInputs[subIndex][wordIndex] = user's input for that blank
   const [blankInputs, setBlankInputs] = useState<Record<number, Record<number, string>>>({});
-  // blankResults[subIndex][wordIndex] = correct/incorrect
   const [blankResults, setBlankResults] = useState<Record<number, Record<number, 'correct' | 'incorrect'>>>({});
   const [completedIndices, setCompletedIndices] = useState<number[]>([]);
   const [score, setScore] = useState(0);
@@ -59,13 +58,19 @@ export default function LessonPage() {
   const [loading, setLoading] = useState(true);
   const [blankMode, setBlankMode] = useState<50 | 100>(100);
   const [revealedWords, setRevealedWords] = useState<Set<string>>(new Set());
-  const [videoBlurLevel, setVideoBlurLevel] = useState<0 | 1 | 2>(0); // 0=off, 1=light, 2=heavy
-
+  const [videoBlurLevel, setVideoBlurLevel] = useState<0 | 1 | 2>(0);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const blankRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const subtitleListRef = useRef<HTMLDivElement | null>(null);
   const autoPauseTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoPauseFallback = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // YouTube iframe refs
+  const ytIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const ytStateRef = useRef<number>(-1);
+  const ytReadyRef = useRef(false);
+  const ytTimeRef = useRef<number>(0);
 
   // Precompute tokenized words and blank positions for each subtitle
   const subTokens = useMemo(() => {
@@ -101,12 +106,7 @@ export default function LessonPage() {
     });
   }, [slug, status, router]);
 
-  // YouTube iframe postMessage API
-  const ytIframeRef = useRef<HTMLIFrameElement | null>(null);
-  const ytStateRef = useRef<number>(-1); // -1 = unstarted, 1 = playing, 2 = paused
-  const ytReadyRef = useRef(false);
-
-  // Send 'listening' event to YouTube iframe so it starts sending infoDelivery (with currentTime)
+  // YouTube postMessage setup
   const initYtListening = useCallback(() => {
     if (!ytIframeRef.current?.contentWindow) return;
     ytIframeRef.current.contentWindow.postMessage(
@@ -116,46 +116,35 @@ export default function LessonPage() {
     ytReadyRef.current = true;
   }, []);
 
-  // Called when iframe finishes loading
   const handleYtIframeLoad = useCallback(() => {
-    // Send listening event with a small delay to ensure player is initialized
     setTimeout(() => initYtListening(), 500);
     setTimeout(() => initYtListening(), 1500);
   }, [initYtListening]);
 
   useEffect(() => {
     if (!lesson || lesson.videoType !== 'youtube') return;
-
     const handleMessage = (e: MessageEvent) => {
       if (e.origin !== 'https://www.youtube.com') return;
       try {
         const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-
-        // Re-send listening on any YouTube message to ensure we keep getting updates
         if (!ytReadyRef.current) initYtListening();
-
         if (data.event === 'onStateChange' || data.info?.playerState !== undefined) {
           const state = data.info?.playerState ?? data.info;
           ytStateRef.current = state;
           setIsPlaying(state === 1);
         }
         if (data.event === 'initialDelivery' || data.event === 'infoDelivery') {
-          if (data.info?.currentTime !== undefined) {
-            ytTimeRef.current = data.info.currentTime;
-          }
+          if (data.info?.currentTime !== undefined) ytTimeRef.current = data.info.currentTime;
           if (data.info?.playerState !== undefined) {
             ytStateRef.current = data.info.playerState;
             setIsPlaying(data.info.playerState === 1);
           }
         }
-      } catch { /* ignore non-JSON messages */ }
+      } catch { /* ignore non-JSON */ }
     };
-
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, [lesson, initYtListening]);
-
-  const ytTimeRef = useRef<number>(0);
 
   const ytCommand = useCallback((func: string, args?: unknown[]) => {
     if (!ytIframeRef.current?.contentWindow) return;
@@ -165,7 +154,7 @@ export default function LessonPage() {
     );
   }, []);
 
-  // Poll for time updates — also re-init listening periodically as a safety net
+  // Poll for YouTube time updates
   useEffect(() => {
     if (!lesson || lesson.videoType !== 'youtube') return;
     const interval = setInterval(() => {
@@ -192,33 +181,21 @@ export default function LessonPage() {
     });
   }, [lesson]);
 
-  // Fallback timeout ref for auto-pause (in case postMessage time tracking fails)
-  const autoPauseFallback = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   // Seek to subtitle and auto-pause when it ends
   const seekToSubtitle = useCallback((index: number) => {
     if (!lesson) return;
     const sub = lesson.subtitles[index];
     if (!sub) return;
 
-    // Clear existing timers
-    if (autoPauseTimer.current) {
-      clearInterval(autoPauseTimer.current);
-      autoPauseTimer.current = null;
-    }
-    if (autoPauseFallback.current) {
-      clearTimeout(autoPauseFallback.current);
-      autoPauseFallback.current = null;
-    }
+    if (autoPauseTimer.current) { clearInterval(autoPauseTimer.current); autoPauseTimer.current = null; }
+    if (autoPauseFallback.current) { clearTimeout(autoPauseFallback.current); autoPauseFallback.current = null; }
 
     const endTime = sub.start + sub.dur + 0.3;
-    const durationMs = (sub.dur + 0.5) * 1000; // fallback duration in ms
+    const durationMs = (sub.dur + 0.5) * 1000;
 
     if (lesson.videoType === 'youtube') {
       ytCommand('seekTo', [sub.start, true]);
       ytCommand('playVideo');
-
-      // Primary: poll-based auto-pause using currentTime from postMessage
       autoPauseTimer.current = setInterval(() => {
         if (ytTimeRef.current >= endTime) {
           ytCommand('pauseVideo');
@@ -226,14 +203,11 @@ export default function LessonPage() {
           if (autoPauseFallback.current) { clearTimeout(autoPauseFallback.current); autoPauseFallback.current = null; }
         }
       }, 80);
-
-      // Fallback: if postMessage time tracking fails, pause after estimated duration
       autoPauseFallback.current = setTimeout(() => {
         ytCommand('pauseVideo');
         if (autoPauseTimer.current) { clearInterval(autoPauseTimer.current); autoPauseTimer.current = null; }
         autoPauseFallback.current = null;
       }, durationMs);
-
     } else if (lesson.videoType === 'local' && videoRef.current) {
       videoRef.current.currentTime = sub.start;
       videoRef.current.play();
@@ -245,6 +219,14 @@ export default function LessonPage() {
       }, 80);
     }
   }, [lesson, ytCommand]);
+
+  const seekBy = useCallback((seconds: number) => {
+    if (lesson?.videoType === 'youtube') {
+      ytCommand('seekTo', [ytTimeRef.current + seconds, true]);
+    } else if (videoRef.current) {
+      videoRef.current.currentTime += seconds;
+    }
+  }, [lesson?.videoType, ytCommand]);
 
   const togglePlay = useCallback(() => {
     if (autoPauseTimer.current) { clearInterval(autoPauseTimer.current); autoPauseTimer.current = null; }
@@ -258,21 +240,14 @@ export default function LessonPage() {
     }
   }, [lesson?.videoType, ytCommand]);
 
-  const seekBy = useCallback((seconds: number) => {
-    if (lesson?.videoType === 'youtube') {
-      ytCommand('seekTo', [ytTimeRef.current + seconds, true]);
-    } else if (videoRef.current) {
-      videoRef.current.currentTime += seconds;
-    }
-  }, [lesson?.videoType, ytCommand]);
-
-
+  const cycleVideoBlur = useCallback(() => {
+    setVideoBlurLevel(prev => ((prev + 1) % 3) as 0 | 1 | 2);
+  }, []);
 
   // Select a subtitle row
   const selectSubtitle = useCallback((index: number) => {
     setCurrentIndex(index);
     seekToSubtitle(index);
-    // Focus first blank
     setTimeout(() => {
       if (subTokens[index]) {
         const firstBlank = Array.from(subTokens[index].blanks).sort((a, b) => a - b)[0];
@@ -284,100 +259,53 @@ export default function LessonPage() {
   }, [seekToSubtitle, subTokens]);
 
   // Keyboard shortcuts
-  const cycleVideoBlur = useCallback(() => {
-    setVideoBlurLevel(prev => ((prev + 1) % 3) as 0 | 1 | 2);
-  }, []);
-
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-      // Space: always replay current subtitle from the beginning
-      if (e.code === 'Space') {
-        e.preventDefault();
-        seekToSubtitle(currentIndex);
-      }
+      if (e.code === 'Space') { e.preventDefault(); seekToSubtitle(currentIndex); }
       if (e.code === 'ArrowLeft' && !isInput) { e.preventDefault(); seekBy(-2); }
       if (e.code === 'ArrowRight' && !isInput) { e.preventDefault(); seekBy(2); }
-      if (e.code === 'ArrowUp') {
-        e.preventDefault();
-        if (currentIndex > 0) selectSubtitle(currentIndex - 1);
-      }
+      if (e.code === 'ArrowUp') { e.preventDefault(); if (currentIndex > 0) selectSubtitle(currentIndex - 1); }
       if (e.code === 'ArrowDown') {
         e.preventDefault();
         const total = lesson?.subtitles?.length || 0;
         if (currentIndex < total - 1) selectSubtitle(currentIndex + 1);
       }
-      // B key: cycle video blur (only when not in an input)
-      if (e.code === 'KeyB' && !isInput) {
-        e.preventDefault();
-        cycleVideoBlur();
-      }
+      if (e.code === 'KeyB' && !isInput) { e.preventDefault(); cycleVideoBlur(); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [togglePlay, seekBy, seekToSubtitle, currentIndex, lesson, selectSubtitle, cycleVideoBlur]);
 
-  // Scroll active subtitle to center of right panel
+  // Scroll active subtitle into view
   useEffect(() => {
     const el = document.getElementById(`sub-${currentIndex}`);
     const container = subtitleListRef.current;
     if (el && container) {
-      const elTop = el.offsetTop;
-      const elHeight = el.offsetHeight;
-      const containerHeight = container.clientHeight;
-      const scrollTo = elTop - (containerHeight / 2) + (elHeight / 2);
+      const scrollTo = el.offsetTop - (container.clientHeight / 2) + (el.offsetHeight / 2);
       container.scrollTo({ top: scrollTo, behavior: 'smooth' });
     }
   }, [currentIndex]);
 
-  // Update a blank input value
-  const setBlankValue = (subIdx: number, wordIdx: number, value: string) => {
-    setBlankInputs(prev => ({
-      ...prev,
-      [subIdx]: { ...(prev[subIdx] || {}), [wordIdx]: value },
-    }));
-    // Clear result for this blank
-    setBlankResults(prev => {
-      const n = { ...prev };
-      if (n[subIdx]) {
-        const updated = { ...n[subIdx] };
-        delete updated[wordIdx];
-        n[subIdx] = updated;
-      }
-      return n;
-    });
-  };
-
   // Normalize for comparison
   const norm = (s: string) => s.toLowerCase().replace(/[.,!?;:'"„"»«]/g, '').trim();
 
-  // Real-time check on every keystroke
+  // Update a blank input value
   const handleBlankChange = (subIdx: number, wordIdx: number, value: string) => {
-    // Update input value
-    setBlankInputs(prev => ({
-      ...prev,
-      [subIdx]: { ...(prev[subIdx] || {}), [wordIdx]: value },
-    }));
+    setBlankInputs(prev => ({ ...prev, [subIdx]: { ...(prev[subIdx] || {}), [wordIdx]: value } }));
 
     if (!lesson || !subTokens[subIdx]) return;
     const { words, blanks } = subTokens[subIdx];
     const expected = norm(words[wordIdx]);
     const actual = norm(value);
 
-    // Determine result for this blank
     let result: 'correct' | 'incorrect' | undefined;
-    if (actual.length === 0) {
-      result = undefined; // empty = no feedback
-    } else if (actual === expected) {
-      result = 'correct';
-    } else if (expected.startsWith(actual)) {
-      result = undefined; // partial match — still typing, no feedback
-    } else {
-      result = 'incorrect';
-    }
+    if (actual.length === 0) result = undefined;
+    else if (actual === expected) result = 'correct';
+    else if (expected.startsWith(actual)) result = undefined;
+    else result = 'incorrect';
 
-    // Update result for this blank
     setBlankResults(prev => {
       const updated = { ...(prev[subIdx] || {}) };
       if (result) updated[wordIdx] = result;
@@ -385,17 +313,13 @@ export default function LessonPage() {
       return { ...prev, [subIdx]: updated };
     });
 
-    // If this word is correct, auto-advance to next blank
     if (result === 'correct') {
       const sortedBlanks = Array.from(blanks).sort((a, b) => a - b);
       const currentPos = sortedBlanks.indexOf(wordIdx);
-
-      // Check if ALL blanks are now correct
       const allInputs = { ...(blankInputs[subIdx] || {}), [wordIdx]: value };
       const allCorrect = sortedBlanks.every(wi => norm(allInputs[wi] || '') === norm(words[wi]));
 
       if (allCorrect) {
-        // Mark subtitle as completed
         const newAttempts = totalAttempts + 1;
         setTotalAttempts(newAttempts);
         let newScore = score;
@@ -406,32 +330,25 @@ export default function LessonPage() {
           setScore(newScore);
           setCompletedIndices(newCompleted);
         }
-        // Mark all blanks as correct
         const allResults: Record<number, 'correct' | 'incorrect'> = {};
         sortedBlanks.forEach(wi => { allResults[wi] = 'correct'; });
         setBlankResults(prev => ({ ...prev, [subIdx]: allResults }));
-
         saveProgress(subIdx, newCompleted, newScore, newAttempts);
 
-        // Auto-advance to next subtitle in diktat
         setTimeout(() => {
           if (subIdx < lesson.subtitles.length - 1) {
             const next = subIdx + 1;
             setCurrentIndex(next);
             seekToSubtitle(next);
-            // Focus first blank of next subtitle
             setTimeout(() => {
               if (subTokens[next]) {
                 const firstBlank = Array.from(subTokens[next].blanks).sort((a, b) => a - b)[0];
-                if (firstBlank !== undefined) {
-                  blankRefs.current[`${next}-${firstBlank}`]?.focus();
-                }
+                if (firstBlank !== undefined) blankRefs.current[`${next}-${firstBlank}`]?.focus();
               }
             }, 150);
           }
         }, 600);
       } else if (currentPos < sortedBlanks.length - 1) {
-        // Move to next blank
         setTimeout(() => {
           blankRefs.current[`${subIdx}-${sortedBlanks[currentPos + 1]}`]?.focus();
         }, 50);
@@ -439,7 +356,7 @@ export default function LessonPage() {
     }
   };
 
-  // Handle Tab in blank inputs (Enter no longer needed for checking)
+  // Handle Tab/Enter in blank inputs
   const handleBlankKeyDown = (e: React.KeyboardEvent, subIdx: number, wordIdx: number) => {
     if (e.key === 'Tab' || e.key === 'Enter') {
       e.preventDefault();
@@ -458,36 +375,22 @@ export default function LessonPage() {
     setRevealedWords(prev => {
       const next = new Set(prev);
       next.add(key);
-
-      // Check if ALL words in this subtitle are now revealed or correctly answered
       if (lesson && subTokens[subIdx]) {
         const { words, blanks } = subTokens[subIdx];
         const subResults = blankResults[subIdx] || {};
         const allRevealed = words.every((_, wi) => {
-          // Word is revealed via double-click
           if (next.has(`${subIdx}-${wi}`)) return true;
-          // Blank word answered correctly
           if (blanks.has(wi) && subResults[wi] === 'correct') return true;
           return false;
         });
-
         if (allRevealed && !completedIndices.includes(subIdx)) {
           const newCompleted = [...completedIndices, subIdx];
           setCompletedIndices(newCompleted);
           saveProgress(subIdx, newCompleted, score, totalAttempts);
         }
       }
-
       return next;
     });
-  };
-
-
-
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return `${m}:${String(s).padStart(2, '0')}`;
   };
 
   if (status === 'loading' || loading) {
@@ -495,7 +398,11 @@ export default function LessonPage() {
   }
 
   if (!lesson) {
-    return <div className="diktat-container"><div className="empty-state"><p>Lektion nicht gefunden</p></div></div>;
+    return (
+      <div className="diktat-container">
+        <div className="empty-state"><p>Lektion nicht gefunden</p></div>
+      </div>
+    );
   }
 
   const totalSubs = lesson.subtitles.length;
@@ -512,234 +419,62 @@ export default function LessonPage() {
           <span>{isPlaying ? '▶ Spielt' : '⏸ Pausiert'}</span>
         </div>
       </header>
+
       <div className="lesson-split">
-      {/* LEFT: Video + Controls */}
-      <div className="lesson-left">
-        <div className="lesson-left-sticky">
-          <div className={`video-wrapper ${videoBlurLevel === 1 ? 'video-blur-light' : videoBlurLevel === 2 ? 'video-blur-heavy' : ''}`}>
-            {lesson.videoType === 'youtube' ? (
-              <iframe
-                ref={ytIframeRef}
-                src={`https://www.youtube.com/embed/${lesson.youtubeId}?enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}&controls=1&modestbranding=1&rel=0`}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                title={lesson.title}
-                onLoad={handleYtIframeLoad}
+        {/* LEFT: Video + Controls */}
+        <div className="lesson-left">
+          <div className="lesson-left-sticky">
+            <VideoPlayer
+              videoType={lesson.videoType}
+              youtubeId={lesson.youtubeId}
+              videoUrl={lesson.videoUrl}
+              title={lesson.title}
+              videoBlurLevel={videoBlurLevel}
+              onYtIframeRef={(el) => { ytIframeRef.current = el; }}
+              onVideoRef={(el) => { videoRef.current = el; }}
+              onYtLoad={handleYtIframeLoad}
+              onLocalPlay={() => setIsPlaying(true)}
+              onLocalPause={() => setIsPlaying(false)}
+            />
+            <LessonProgress
+              completedCount={completedIndices.length}
+              totalSubs={totalSubs}
+              pct={pct}
+              blankMode={blankMode}
+              videoBlurLevel={videoBlurLevel}
+              onModeChange={setBlankMode}
+              onCycleBlur={cycleVideoBlur}
+            />
+          </div>
+        </div>
+
+        {/* RIGHT: Subtitle list */}
+        <div className="lesson-right" ref={subtitleListRef}>
+          {lesson.subtitles.map((sub, i) => {
+            const tokens = subTokens[i];
+            if (!tokens) return null;
+            return (
+              <ClozeRow
+                key={i}
+                sub={sub}
+                index={i}
+                isActive={i === currentIndex}
+                isCompleted={completedIndices.includes(i)}
+                tokens={tokens}
+                subResults={blankResults[i] || {}}
+                subInputs={blankInputs[i] || {}}
+                revealedWords={revealedWords}
+                blankMode={blankMode}
+                blankRefs={blankRefs}
+                onSelect={selectSubtitle}
+                onChange={handleBlankChange}
+                onKeyDown={handleBlankKeyDown}
+                onRevealWord={revealWord}
               />
-            ) : (
-              <video
-                ref={videoRef}
-                src={lesson.videoUrl}
-                controls
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-              />
-            )}
-            {/* Blur overlay label */}
-            {videoBlurLevel > 0 && (
-              <div className="video-blur-label">
-                <span>{videoBlurLevel === 1 ? '🌫️ Leicht' : '🔇 Stark'}</span>
-              </div>
-            )}
-          </div>
-
-
-
-          <div className="lesson-progress-section">
-            <div className="lesson-progress-header">
-              <span>{completedIndices.length} / {totalSubs} richtig</span>
-              <span className="lesson-progress-pct">{pct}%</span>
-            </div>
-            <div className="lesson-progress-track">
-              <div className="lesson-progress-fill" style={{ width: `${pct}%` }} />
-            </div>
-          </div>
-
-          {/* Difficulty toggle */}
-          <div className="mode-toggle">
-            <span className="mode-label">Schwierigkeit</span>
-            <div className="mode-buttons">
-              <button
-                className={`mode-btn ${blankMode === 50 ? 'mode-btn-active' : ''}`}
-                onClick={() => setBlankMode(50)}
-              >
-                50% Lücken
-              </button>
-              <button
-                className={`mode-btn ${blankMode === 100 ? 'mode-btn-active' : ''}`}
-                onClick={() => setBlankMode(100)}
-              >
-                100% Diktat
-              </button>
-            </div>
-          </div>
-
-          {/* Video Blur Toggle */}
-          <div className="video-blur-toggle">
-            <button
-              className={`video-blur-btn ${videoBlurLevel > 0 ? 'video-blur-btn-active' : ''}`}
-              onClick={cycleVideoBlur}
-              title="Video verschwommen machen (B)"
-            >
-              <span className="video-blur-btn-icon">
-                {videoBlurLevel === 0 ? '👁️' : videoBlurLevel === 1 ? '🌫️' : '🔇'}
-              </span>
-              <span className="video-blur-btn-text">
-                {videoBlurLevel === 0 ? 'Video klar' : videoBlurLevel === 1 ? 'Leicht unscharf' : 'Stark unscharf'}
-              </span>
-              <span className="video-blur-btn-level">
-                {['AUS', 'LEICHT', 'STARK'][videoBlurLevel]}
-              </span>
-            </button>
-          </div>
-
-
+            );
+          })}
         </div>
       </div>
-
-      {/* RIGHT: Subtitle list with fill-in-the-blank */}
-      <div className="lesson-right" ref={subtitleListRef}>
-        {lesson.subtitles.map((sub, i) => {
-          const isActive = i === currentIndex;
-          const isCompleted = completedIndices.includes(i);
-          const tokens = subTokens[i];
-          if (!tokens) return null;
-          const { words, blanks } = tokens;
-          const subResults = blankResults[i] || {};
-          const subInputs = blankInputs[i] || {};
-          const allBlanksCorrect = blanks.size > 0 && Array.from(blanks).every(wi => subResults[wi] === 'correct');
-
-          return (
-            <div
-              key={i}
-              id={`sub-${i}`}
-              className={`sub-row ${isActive ? 'sub-active' : ''} ${isCompleted ? 'sub-completed' : ''}`}
-              onClick={() => selectSubtitle(i)}
-            >
-              <div className="sub-row-header">
-                <span className="sub-number">{i + 1}</span>
-                <button
-                  className="sub-play-btn"
-                  onClick={(e) => { e.stopPropagation(); selectSubtitle(i); }}
-                  title="Abspielen"
-                >
-                  🔊
-                </button>
-                <span className="sub-time">{formatTime(sub.start)}</span>
-
-                {isActive && !isCompleted && (
-                  <span className="sub-phase-badge sub-phase-diktat">✍️ Diktat</span>
-                )}
-                {isCompleted && <span className="sub-check">✓</span>}
-              </div>
-
-              {/* Subtitle content — diktat cloze */}
-              <div className="sub-cloze">
-
-                {/* Completed shows green text, not-yet-reached shows blurred text, active shows inputs */}
-                {
-                  <>
-                    {isCompleted ? (
-                      // Completed — show full text in green
-                      <>{words.map((word, wi) => (
-                        <span key={wi} className="cloze-word cloze-correct">{word}{' '}</span>
-                      ))}</>
-                    ) : !isActive ? (
-                      // Not active, not completed — check if any words were revealed
-                      (() => {
-                        const hasAnyRevealed = words.some((_, wi) => revealedWords.has(`${i}-${wi}`));
-                        if (hasAnyRevealed) {
-                          // Show revealed words clearly, rest blurred
-                          return <>{words.map((word, wi) => {
-                            const isWordRevealed = revealedWords.has(`${i}-${wi}`);
-                            const subResults_i = blankResults[i] || {};
-                            const isWordCorrect = blanks.has(wi) && subResults_i[wi] === 'correct';
-                            if (isWordRevealed || isWordCorrect) {
-                              return <span key={wi} className="cloze-word cloze-revealed">{word}{' '}</span>;
-                            }
-                            return <span key={wi} className="cloze-word sub-cloze-blurred">{word}{' '}</span>;
-                          })}</>;
-                        }
-                        return (
-                          <span className="sub-cloze-blurred">
-                            {words.map((word, wi) => (
-                              <span key={wi} className="cloze-word cloze-shadow-text">{word}{' '}</span>
-                            ))}
-                          </span>
-                        );
-                      })()
-                    ) : (
-                      // Active row — show cloze inputs
-                      <>{words.map((word, wi) => {
-                        const isBlank = blanks.has(wi);
-                        const result = subResults[wi];
-                        const userVal = subInputs[wi] || '';
-                        const cleanWord = word.replace(/[.,!?;:'"„"»«]/g, '');
-                        const punct = word.slice(cleanWord.length);
-
-                        // All blanks correct — show all words revealed
-                        if (allBlanksCorrect) {
-                          return <span key={wi} className="cloze-word cloze-correct">{word}{' '}</span>;
-                        }
-
-                        // Check if this individual word was revealed via double-click
-                        const isRevealed = revealedWords.has(`${i}-${wi}`);
-
-                        // Non-blank word in active row
-                        if (!isBlank) {
-                          if (blankMode === 50 || isRevealed) {
-                            return <span key={wi} className="cloze-word cloze-revealed">{word}{' '}</span>;
-                          }
-                          return (
-                            <span
-                              key={wi}
-                              className="cloze-word cloze-square-box"
-                              onDoubleClick={(e) => { e.stopPropagation(); revealWord(i, wi); }}
-                              title="Doppelklick zum Anzeigen"
-                            >
-                              {cleanWord.replace(/./g, '■')}{punct}{' '}
-                            </span>
-                          );
-                        }
-
-                        // Already correct blank or revealed via double-click
-                        if (result === 'correct' || isRevealed) {
-                          return <span key={wi} className={`cloze-word ${result === 'correct' ? 'cloze-correct' : 'cloze-revealed'}`}>{word}{' '}</span>;
-                        }
-
-                        // Active row blank — single input box per word
-                        return (
-                          <span
-                            key={wi}
-                            className={`cloze-input-wrap ${result === 'incorrect' ? 'cloze-input-error' : ''}`}
-                            onClick={(e) => { e.stopPropagation(); blankRefs.current[`${i}-${wi}`]?.focus(); }}
-                            onDoubleClick={(e) => { e.stopPropagation(); revealWord(i, wi); }}
-                          >
-                            <input
-                              ref={el => { blankRefs.current[`${i}-${wi}`] = el; }}
-                              type="text"
-                              className="cloze-input"
-                              value={userVal}
-                              onChange={e => handleBlankChange(i, wi, e.target.value)}
-                              onKeyDown={e => handleBlankKeyDown(e, i, wi)}
-                              autoFocus={wi === Array.from(blanks).sort((a, b) => a - b)[0]}
-                              maxLength={cleanWord.length}
-                              placeholder={'_'.repeat(cleanWord.length)}
-                              style={{ width: `${cleanWord.length + 0.8}ch` }}
-                            />
-                            {punct && <span className="cloze-punct">{punct}</span>}
-                            {' '}
-                          </span>
-                        );
-                      })}</>
-                    )}
-                  </>}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
     </div>
   );
 }

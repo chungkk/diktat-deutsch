@@ -202,7 +202,8 @@ export default function HomePage() {
     });
   };
 
-  if (status === 'loading' || !lessonsReady || !progressReady) {
+  // Only block on auth + lesson loading — progress loads in background
+  if (status === 'loading' || !lessonsReady) {
     return (
       <div className="loading">
         <div className="loading-cute">
@@ -273,7 +274,12 @@ export default function HomePage() {
             </div>
             <div className="home-grid">
               {lessons
-                .map((lesson, idx) => ({ lesson, idx }))
+                .map((lesson, idx) => ({
+                  lesson,
+                  idx,
+                  // Compute isLocked based on original index BEFORE sorting
+                  isLocked: idx >= unlockedCount,
+                }))
                 .sort((a, b) => {
                   const aPct = getLessonPct(a.lesson._id, a.lesson.subtitles?.length || 0);
                   const bPct = getLessonPct(b.lesson._id, b.lesson.subtitles?.length || 0);
@@ -282,7 +288,7 @@ export default function HomePage() {
                   if (aDone !== bDone) return aDone ? 1 : -1;
                   return a.idx - b.idx;
                 })
-                .map(({ lesson, idx }) => {
+                .map(({ lesson, idx, isLocked }) => {
                 const prog = getProgress(lesson._id);
                 const totalSubs = lesson.subtitles?.length || 0;
                 const completed = prog?.completedIndices?.length || 0;
@@ -290,7 +296,6 @@ export default function HomePage() {
                 const thumb = getThumbnail(lesson);
                 const levelColor = LEVEL_COLORS[lesson.level] || 'var(--accent)';
                 const levelEmoji = LEVEL_EMOJI[lesson.level] || '📝';
-                const isLocked = idx >= unlockedCount;
 
                 const cardContent = (
                   <article className={`home-card ${isLocked ? 'home-card-locked' : ''}`}>

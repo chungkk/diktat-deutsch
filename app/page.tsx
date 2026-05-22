@@ -222,7 +222,7 @@ export default function HomePage() {
 
   // Progressive unlock: lesson[i] is unlocked if i===0 or lesson[i-1] >= 90%
   const unlockedCount = (() => {
-    let count = 1; // first lesson always unlocked
+    let count = Math.min(2, lessons.length); // show 2 next lessons
     for (let i = 0; i < lessons.length - 1; i++) {
       const pct = getLessonPct(lessons[i]._id, lessons[i].subtitles?.length || 0);
       if (pct >= 90) count++;

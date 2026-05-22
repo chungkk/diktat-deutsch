@@ -66,14 +66,16 @@ function ProgressRing({ pct, size = 44, stroke = 3.5 }: { pct: number; size?: nu
   const circ = 2 * Math.PI * radius;
   const offset = circ - (pct / 100) * circ;
 
+  const color = pct >= 100 ? 'var(--success)' : 'var(--accent)';
+
   return (
-    <svg width={size} height={size} className="progress-ring">
+    <svg width={size} height={size} style={{ flexShrink: 0 }}>
       <circle
         cx={size / 2}
         cy={size / 2}
         r={radius}
         fill="none"
-        stroke="rgba(255,255,255,0.1)"
+        stroke="rgba(255,255,255,0.15)"
         strokeWidth={stroke}
       />
       <circle
@@ -81,13 +83,13 @@ function ProgressRing({ pct, size = 44, stroke = 3.5 }: { pct: number; size?: nu
         cy={size / 2}
         r={radius}
         fill="none"
-        stroke={pct >= 100 ? 'var(--success)' : 'var(--accent)'}
+        stroke={color}
         strokeWidth={stroke}
         strokeDasharray={circ}
         strokeDashoffset={offset}
         strokeLinecap="round"
         transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+        style={{ transition: 'stroke-dashoffset 0.6s ease', filter: `drop-shadow(0 0 3px ${pct >= 100 ? 'var(--success)' : 'var(--accent)'})` }}
       />
       <text
         x="50%"
@@ -95,7 +97,7 @@ function ProgressRing({ pct, size = 44, stroke = 3.5 }: { pct: number; size?: nu
         textAnchor="middle"
         dominantBaseline="central"
         fill="var(--text-primary)"
-        fontSize={size * 0.24}
+        fontSize={size * 0.26}
         fontWeight="700"
         fontFamily="Inter, sans-serif"
       >
@@ -273,9 +275,11 @@ export default function HomePage() {
               {lessons
                 .map((lesson, idx) => ({ lesson, idx }))
                 .sort((a, b) => {
-                  const aCompleted = !!getProgress(a.lesson._id)?.isCompleted;
-                  const bCompleted = !!getProgress(b.lesson._id)?.isCompleted;
-                  if (aCompleted !== bCompleted) return aCompleted ? 1 : -1;
+                  const aPct = getLessonPct(a.lesson._id, a.lesson.subtitles?.length || 0);
+                  const bPct = getLessonPct(b.lesson._id, b.lesson.subtitles?.length || 0);
+                  const aDone = aPct >= 90;
+                  const bDone = bPct >= 90;
+                  if (aDone !== bDone) return aDone ? 1 : -1;
                   return a.idx - b.idx;
                 })
                 .map(({ lesson, idx }) => {

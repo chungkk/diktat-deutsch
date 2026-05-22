@@ -645,16 +645,15 @@ a:hover { @apply text-accent-hover; }
 
 /* Card footer */
 .home-card-footer {
-  @apply flex items-center gap-3 pt-2.5 border-t border-border mt-0.5;
+  @apply flex items-center gap-3 pt-3 mt-1;
 }
 .home-card-progress-info { @apply flex-1 flex flex-col gap-1.5; }
 .home-card-progress-bar {
-  @apply h-1 rounded-sm overflow-hidden;
-  background: rgba(255,255,255,0.06);
+  @apply h-1.5 rounded-full overflow-hidden;
+  background: rgba(255,255,255,0.12);
 }
-.home-card-progress-fill { @apply h-full rounded-sm min-w-0; transition: width 0.5s ease; }
-.home-card-progress-text { @apply text-[0.72rem] text-text-muted font-medium tabular-nums; }
-.progress-ring { @apply shrink-0; }
+.home-card-progress-fill { @apply h-full rounded-full min-w-0; transition: width 0.5s ease; }
+.home-card-progress-text { @apply text-xs text-text-secondary font-semibold tabular-nums; }
 
 /* Page header */
 .page-header { @apply pt-12 pb-8; }

@@ -652,6 +652,67 @@ a:hover { color: var(--color-accent-hover); }
 .shadowing-progress-info { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 1rem; padding: 0.5rem 0.75rem; background: var(--color-bg-card); border: 2px solid var(--color-border); border-radius: 1rem; }
 .switch-diktat-btn { margin-bottom: 0.75rem; animation: pulseGlow 2s ease-in-out infinite; }
 
+/* BOOKMARK BUTTON */
+.sub-bookmark-btn {
+  background: transparent; border: none; cursor: pointer;
+  font-size: 1.05rem; padding: 0.2rem 0.25rem;
+  color: var(--color-text-muted); transition: all 0.2s;
+  margin-left: auto; flex-shrink: 0; line-height: 1;
+  border-radius: 0.4rem;
+}
+.sub-bookmark-btn:hover { color: #fbbf24; transform: scale(1.3); filter: drop-shadow(0 0 4px rgba(251,191,36,0.5)); }
+.sub-bookmark-btn-active { color: #fbbf24; filter: drop-shadow(0 0 5px rgba(251,191,36,0.5)); animation: pop 0.3s ease; }
+.sub-bookmarked {
+  border-color: rgba(251,191,36,0.35) !important;
+  background: rgba(251,191,36,0.04) !important;
+}
+.sub-bookmarked:hover { border-color: rgba(251,191,36,0.6) !important; }
+.sub-bookmarked.sub-active { border-color: rgba(251,191,36,0.7) !important; box-shadow: 4px 4px 0 rgba(180,83,9,0.4) !important; }
+
+/* SHADOWING MODE BUTTON */
+.shadowing-mode-toggle { margin-bottom: 1rem; }
+.shadowing-mode-btn {
+  display: flex; align-items: center; gap: 0.6rem;
+  width: 100%; padding: 0.75rem 1rem;
+  background: var(--color-bg-card);
+  border: 2px solid var(--color-border);
+  border-radius: 1rem; color: var(--color-text-secondary);
+  font-size: 0.825rem; font-weight: 800; font-family: var(--font-family-sans);
+  cursor: pointer; transition: all 0.18s;
+  box-shadow: 3px 3px 0 rgba(0,0,0,0.3);
+}
+.shadowing-mode-btn:hover { border-color: #fbbf24; color: #fbbf24; transform: translate(-1px,-1px); box-shadow: 4px 4px 0 #b45309; }
+.shadowing-mode-btn-active {
+  border-color: #fbbf24; color: #fbbf24;
+  background: rgba(251,191,36,0.08);
+  box-shadow: 3px 3px 0 #b45309;
+}
+.shadowing-mode-btn-active:hover { opacity: 0.9; }
+.shadowing-mode-btn-icon { font-size: 1.15rem; transition: transform 0.2s; flex-shrink: 0; }
+.shadowing-mode-btn:hover .shadowing-mode-btn-icon { transform: scale(1.2) rotate(10deg); }
+.shadowing-mode-btn-text { flex: 1; text-align: left; }
+.shadowing-mode-btn-badge {
+  padding: 0.15rem 0.5rem; border-radius: 0.5rem;
+  font-size: 0.65rem; font-weight: 900; letter-spacing: 0.08em;
+  background: rgba(255,255,255,0.06); border: 1.5px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+.shadowing-mode-btn-badge-on { background: rgba(251,191,36,0.18); color: #fbbf24; border-color: #fbbf24; }
+.shadowing-mode-hint { font-size: 0.7rem; color: var(--color-text-muted); margin-top: 0.4rem; text-align: center; font-weight: 700; opacity: 0.7; }
+
+/* SHADOWING MODE RIGHT PANEL */
+.lesson-right-shadowing {
+  background: linear-gradient(180deg, rgba(251,191,36,0.03) 0%, transparent 20%);
+  border-left: 2.5px solid rgba(251,191,36,0.2) !important;
+}
+.shadowing-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 0.75rem;
+  padding: 4rem 2rem; text-align: center;
+}
+.shadowing-empty-icon { font-size: 3.5rem; display: block; animation: float 2.5s ease-in-out infinite; }
+.shadowing-empty-text { font-size: 1rem; font-weight: 900; color: var(--color-text-primary); }
+.shadowing-empty-hint { font-size: 0.825rem; color: var(--color-text-muted); font-weight: 700; }
+
 /* ADMIN */
 .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
 .admin-title { font-size: 1.6rem; font-weight: 900; color: var(--color-accent); text-shadow: 2px 2px 0 #15803d; }

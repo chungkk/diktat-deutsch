@@ -17,6 +17,7 @@ interface ClozeRowProps {
   index: number;
   isActive: boolean;
   isCompleted: boolean;
+  isBookmarked: boolean;
   tokens: TokenInfo;
   subResults: Record<number, 'correct' | 'incorrect'>;
   subInputs: Record<number, string>;
@@ -27,6 +28,7 @@ interface ClozeRowProps {
   onChange: (subIdx: number, wordIdx: number, value: string) => void;
   onKeyDown: (e: React.KeyboardEvent, subIdx: number, wordIdx: number) => void;
   onRevealWord: (subIdx: number, wordIdx: number) => void;
+  onToggleBookmark: (index: number) => void;
 }
 
 function formatTime(seconds: number): string {
@@ -40,6 +42,7 @@ export default function ClozeRow({
   index,
   isActive,
   isCompleted,
+  isBookmarked,
   tokens,
   subResults,
   subInputs,
@@ -50,6 +53,7 @@ export default function ClozeRow({
   onChange,
   onKeyDown,
   onRevealWord,
+  onToggleBookmark,
 }: ClozeRowProps) {
   const { words, blanks } = tokens;
   const allBlanksCorrect =
@@ -196,7 +200,7 @@ export default function ClozeRow({
   return (
     <div
       id={`sub-${index}`}
-      className={`sub-row ${isActive ? 'sub-active' : ''} ${isCompleted ? 'sub-completed' : ''}`}
+      className={`sub-row ${isActive ? 'sub-active' : ''} ${isCompleted ? 'sub-completed' : ''} ${isBookmarked ? 'sub-bookmarked' : ''}`}
       onClick={() => onSelect(index)}
     >
       <div className="sub-row-header">
@@ -216,6 +220,16 @@ export default function ClozeRow({
           <span className="sub-phase-badge sub-phase-diktat">✍️ Diktat</span>
         )}
         {isCompleted && <span className="sub-check">✓</span>}
+        <button
+          className={`sub-bookmark-btn ${isBookmarked ? 'sub-bookmark-btn-active' : ''}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleBookmark(index);
+          }}
+          title={isBookmarked ? 'Lesezeichen entfernen' : 'Lesezeichen setzen'}
+        >
+          {isBookmarked ? '★' : '☆'}
+        </button>
       </div>
       <div className="sub-cloze">{renderWords()}</div>
     </div>

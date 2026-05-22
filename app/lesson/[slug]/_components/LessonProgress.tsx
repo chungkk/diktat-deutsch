@@ -6,8 +6,11 @@ interface LessonProgressProps {
   pct: number;
   blankMode: 50 | 100;
   videoBlurLevel: 0 | 1 | 2;
+  shadowingMode: boolean;
+  bookmarkCount: number;
   onModeChange: (mode: 50 | 100) => void;
   onCycleBlur: () => void;
+  onToggleShadowing: () => void;
 }
 
 export default function LessonProgress({
@@ -16,8 +19,11 @@ export default function LessonProgress({
   pct,
   blankMode,
   videoBlurLevel,
+  shadowingMode,
+  bookmarkCount,
   onModeChange,
   onCycleBlur,
+  onToggleShadowing,
 }: LessonProgressProps) {
   return (
     <>
@@ -49,6 +55,30 @@ export default function LessonProgress({
             100% Diktat
           </button>
         </div>
+      </div>
+
+      {/* Shadowing mode button */}
+      <div className="shadowing-mode-toggle">
+        <button
+          className={`shadowing-mode-btn ${shadowingMode ? 'shadowing-mode-btn-active' : ''}`}
+          onClick={onToggleShadowing}
+          title="Nur markierte Sätze anzeigen"
+        >
+          <span className="shadowing-mode-btn-icon">
+            {shadowingMode ? '🎯' : '🔖'}
+          </span>
+          <span className="shadowing-mode-btn-text">
+            {shadowingMode
+              ? `Shadowing: ${bookmarkCount} Sätze`
+              : `Shadowing${bookmarkCount > 0 ? ` (${bookmarkCount} ★)` : ''}`}
+          </span>
+          <span className={`shadowing-mode-btn-badge ${shadowingMode ? 'shadowing-mode-btn-badge-on' : ''}`}>
+            {shadowingMode ? 'AN' : 'AUS'}
+          </span>
+        </button>
+        {bookmarkCount === 0 && !shadowingMode && (
+          <p className="shadowing-mode-hint">★ Sätze markieren, dann Shadowing starten</p>
+        )}
       </div>
 
       {/* Video blur toggle */}

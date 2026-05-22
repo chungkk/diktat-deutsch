@@ -87,6 +87,8 @@ export default function LessonPage() {
   const [blankMode, setBlankMode] = useState<50 | 100>(100);
   const [revealedWords, setRevealedWords] = useState<Set<string>>(new Set());
   const [videoBlurLevel, setVideoBlurLevel] = useState<0 | 1 | 2>(0);
+  const [bookmarkedIndices, setBookmarkedIndices] = useState<Set<number>>(new Set());
+  const [shadowingMode, setShadowingMode] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const blankRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -273,6 +275,19 @@ export default function LessonPage() {
     setVideoBlurLevel(prev => ((prev + 1) % 3) as 0 | 1 | 2);
   }, []);
 
+  const toggleBookmark = useCallback((index: number) => {
+    setBookmarkedIndices(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }, []);
+
+  const toggleShadowingMode = useCallback(() => {
+    setShadowingMode(prev => !prev);
+  }, []);
+
   // Select a subtitle row
   const selectSubtitle = useCallback((index: number) => {
     setCurrentIndex(index);
@@ -295,17 +310,36 @@ export default function LessonPage() {
       if (e.code === 'Space') { e.preventDefault(); seekToSubtitle(currentIndex); }
       if (e.code === 'ArrowLeft' && !isInput) { e.preventDefault(); seekBy(-2); }
       if (e.code === 'ArrowRight' && !isInput) { e.preventDefault(); seekBy(2); }
-      if (e.code === 'ArrowUp') { e.preventDefault(); if (currentIndex > 0) selectSubtitle(currentIndex - 1); }
+      if (e.code === 'ArrowUp') {
+        e.preventDefault();
+        if (shadowingMode) {
+          const visibleIndices = lesson?.subtitles
+            .map((_, i) => i)
+            .filter(i => bookmarkedIndices.has(i)) || [];
+          const pos = visibleIndices.indexOf(currentIndex);
+          if (pos > 0) selectSubtitle(visibleIndices[pos - 1]);
+        } else {
+          if (currentIndex > 0) selectSubtitle(currentIndex - 1);
+        }
+      }
       if (e.code === 'ArrowDown') {
         e.preventDefault();
-        const total = lesson?.subtitles?.length || 0;
-        if (currentIndex < total - 1) selectSubtitle(currentIndex + 1);
+        if (shadowingMode) {
+          const visibleIndices = lesson?.subtitles
+            .map((_, i) => i)
+            .filter(i => bookmarkedIndices.has(i)) || [];
+          const pos = visibleIndices.indexOf(currentIndex);
+          if (pos < visibleIndices.length - 1) selectSubtitle(visibleIndices[pos + 1]);
+        } else {
+          const total = lesson?.subtitles?.length || 0;
+          if (currentIndex < total - 1) selectSubtitle(currentIndex + 1);
+        }
       }
       if (e.code === 'KeyB' && !isInput) { e.preventDefault(); cycleVideoBlur(); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlay, seekBy, seekToSubtitle, currentIndex, lesson, selectSubtitle, cycleVideoBlur]);
+  }, [togglePlay, seekBy, seekToSubtitle, currentIndex, lesson, selectSubtitle, cycleVideoBlur, shadowingMode, bookmarkedIndices]);
 
   // Scroll active subtitle into view
   useEffect(() => {
@@ -471,17 +505,28 @@ export default function LessonPage() {
               pct={pct}
               blankMode={blankMode}
               videoBlurLevel={videoBlurLevel}
+              shadowingMode={shadowingMode}
+              bookmarkCount={bookmarkedIndices.size}
               onModeChange={setBlankMode}
               onCycleBlur={cycleVideoBlur}
+              onToggleShadowing={toggleShadowingMode}
             />
           </div>
         </div>
 
         {/* RIGHT: Subtitle list */}
-        <div className="lesson-right" ref={subtitleListRef}>
+        <div className={`lesson-right ${shadowingMode ? 'lesson-right-shadowing' : ''}`} ref={subtitleListRef}>
+          {shadowingMode && bookmarkedIndices.size === 0 && (
+            <div className="shadowing-empty">
+              <span className="shadowing-empty-icon">🔖</span>
+              <p className="shadowing-empty-text">Keine Sätze markiert</p>
+              <p className="shadowing-empty-hint">Klicke auf ☆ neben einem Satz, um ihn zu markieren.</p>
+            </div>
+          )}
           {lesson.subtitles.map((sub, i) => {
             const tokens = subTokens[i];
             if (!tokens) return null;
+            if (shadowingMode && !bookmarkedIndices.has(i)) return null;
             return (
               <ClozeRow
                 key={i}
@@ -489,6 +534,7 @@ export default function LessonPage() {
                 index={i}
                 isActive={i === currentIndex}
                 isCompleted={completedIndices.includes(i)}
+                isBookmarked={bookmarkedIndices.has(i)}
                 tokens={tokens}
                 subResults={blankResults[i] || {}}
                 subInputs={blankInputs[i] || {}}
@@ -499,6 +545,7 @@ export default function LessonPage() {
                 onChange={handleBlankChange}
                 onKeyDown={handleBlankKeyDown}
                 onRevealWord={revealWord}
+                onToggleBookmark={toggleBookmark}
               />
             );
           })}

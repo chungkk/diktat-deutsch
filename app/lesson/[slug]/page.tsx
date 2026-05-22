@@ -95,6 +95,8 @@ export default function LessonPage() {
   const subtitleListRef = useRef<HTMLDivElement | null>(null);
   const autoPauseTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoPauseFallback = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Always-fresh ref for completedIndices to prevent HTTP race conditions
+  const completedIndicesRef = useRef<number[]>([]);
 
   // YouTube iframe refs
   const ytIframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -129,7 +131,10 @@ export default function LessonPage() {
       setLesson(lessonData);
       fetch(`/api/progress?lessonId=${lessonData._id}`).then(r => r.json()).then(progressData => {
         if (progressData?.currentIndex) setCurrentIndex(progressData.currentIndex);
-        if (progressData?.completedIndices) setCompletedIndices(progressData.completedIndices);
+        if (Array.isArray(progressData?.completedIndices)) {
+          completedIndicesRef.current = progressData.completedIndices;
+          setCompletedIndices(progressData.completedIndices);
+        }
         if (progressData?.score) setScore(progressData.score);
         if (progressData?.totalAttempts) setTotalAttempts(progressData.totalAttempts);
         setLoading(false);
@@ -195,15 +200,17 @@ export default function LessonPage() {
     return () => clearInterval(interval);
   }, [lesson, ytCommand]);
 
-  // Save progress
-  const saveProgress = useCallback(async (idx: number, completed: number[], sc: number, attempts: number) => {
+  // Save progress — always uses latest completedIndices via ref to avoid race conditions
+  const saveProgress = useCallback(async (completed: number[], sc: number, attempts: number) => {
     if (!lesson) return;
     await fetch('/api/progress', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         lessonId: lesson._id,
-        currentIndex: idx,
+        currentIndex: completedIndicesRef.current.length > 0
+          ? Math.max(...completedIndicesRef.current)
+          : 0,
         completedIndices: completed,
         score: sc,
         totalAttempts: attempts,
@@ -386,17 +393,18 @@ export default function LessonPage() {
         const newAttempts = totalAttempts + 1;
         setTotalAttempts(newAttempts);
         let newScore = score;
-        let newCompleted = completedIndices;
-        if (!completedIndices.includes(subIdx)) {
+        let newCompleted = completedIndicesRef.current;
+        if (!completedIndicesRef.current.includes(subIdx)) {
           newScore = score + 1;
-          newCompleted = [...completedIndices, subIdx];
+          newCompleted = [...completedIndicesRef.current, subIdx];
+          completedIndicesRef.current = newCompleted;
           setScore(newScore);
           setCompletedIndices(newCompleted);
         }
         const allResults: Record<number, 'correct' | 'incorrect'> = {};
         sortedBlanks.forEach(wi => { allResults[wi] = 'correct'; });
         setBlankResults(prev => ({ ...prev, [subIdx]: allResults }));
-        saveProgress(subIdx, newCompleted, newScore, newAttempts);
+        saveProgress(newCompleted, newScore, newAttempts);
 
         setTimeout(() => {
           if (subIdx < lesson.subtitles.length - 1) {
@@ -442,14 +450,16 @@ export default function LessonPage() {
         const { words, blanks } = subTokens[subIdx];
         const subResults = blankResults[subIdx] || {};
         const allRevealed = words.every((_, wi) => {
-          if (next.has(`${subIdx}-${wi}`)) return true;
-          if (blanks.has(wi) && subResults[wi] === 'correct') return true;
+          if (!blanks.has(wi)) return true;                          // visible word (not a blank) — always ok
+          if (next.has(`${subIdx}-${wi}`)) return true;             // blank was revealed
+          if (subResults[wi] === 'correct') return true;            // blank was typed correctly
           return false;
         });
-        if (allRevealed && !completedIndices.includes(subIdx)) {
-          const newCompleted = [...completedIndices, subIdx];
+        if (allRevealed && !completedIndicesRef.current.includes(subIdx)) {
+          const newCompleted = [...completedIndicesRef.current, subIdx];
+          completedIndicesRef.current = newCompleted;
           setCompletedIndices(newCompleted);
-          saveProgress(subIdx, newCompleted, score, totalAttempts);
+          saveProgress(newCompleted, score, totalAttempts);
         }
       }
       return next;

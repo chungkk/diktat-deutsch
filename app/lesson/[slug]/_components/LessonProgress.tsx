@@ -57,44 +57,38 @@ export default function LessonProgress({
         </div>
       </div>
 
-      {/* Shadowing mode button */}
-      <div className="shadowing-mode-toggle">
+      {/* Controls group — Shadowing + Video blur, side by side */}
+      <div className="lesson-ctrl-group">
+        {/* Shadowing toggle */}
         <button
-          className={`shadowing-mode-btn ${shadowingMode ? 'shadowing-mode-btn-active' : ''}`}
+          className={`ctrl-btn ctrl-btn-shadow ${shadowingMode ? 'ctrl-btn-shadow-active' : ''}`}
           onClick={onToggleShadowing}
           title="Nur markierte Sätze anzeigen"
         >
-          <span className="shadowing-mode-btn-icon">
+          <span className="ctrl-btn-icon">
             {shadowingMode ? '🎯' : '🔖'}
           </span>
-          <span className="shadowing-mode-btn-text">
-            {shadowingMode
-              ? `Shadowing: ${bookmarkCount} Sätze`
-              : `Shadowing${bookmarkCount > 0 ? ` (${bookmarkCount} ★)` : ''}`}
+          <span className="ctrl-btn-text">
+            Shadowing{bookmarkCount > 0 ? ` ${bookmarkCount}★` : ''}
           </span>
-          <span className={`shadowing-mode-btn-badge ${shadowingMode ? 'shadowing-mode-btn-badge-on' : ''}`}>
+          <span className="ctrl-btn-badge">
             {shadowingMode ? 'AN' : 'AUS'}
           </span>
         </button>
-        {bookmarkCount === 0 && !shadowingMode && (
-          <p className="shadowing-mode-hint">★ Sätze markieren, dann Shadowing starten</p>
-        )}
-      </div>
 
-      {/* Video blur toggle */}
-      <div className="video-blur-toggle">
+        {/* Video blur toggle */}
         <button
-          className={`video-blur-btn ${videoBlurLevel > 0 ? 'video-blur-btn-active' : ''}`}
+          className={`ctrl-btn ctrl-btn-blur ${videoBlurLevel > 0 ? 'ctrl-btn-blur-active' : ''}`}
           onClick={onCycleBlur}
           title="Video verschwommen machen (B)"
         >
-          <span className="video-blur-btn-icon">
+          <span className="ctrl-btn-icon">
             {videoBlurLevel === 0 ? '👁️' : videoBlurLevel === 1 ? '🌫️' : '🔇'}
           </span>
-          <span className="video-blur-btn-text">
-            {videoBlurLevel === 0 ? 'Video klar' : videoBlurLevel === 1 ? 'Leicht unscharf' : 'Stark unscharf'}
+          <span className="ctrl-btn-text">
+            {videoBlurLevel === 0 ? 'Video' : videoBlurLevel === 1 ? 'Unscharf' : 'Stark'}
           </span>
-          <span className="video-blur-btn-level">
+          <span className="ctrl-btn-badge">
             {(['AUS', 'LEICHT', 'STARK'] as const)[videoBlurLevel]}
           </span>
         </button>

@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import VideoPlayer from './_components/VideoPlayer';
 import LessonProgress from './_components/LessonProgress';
 import ClozeRow from './_components/ClozeRow';
+import FreeTypingPanel from './_components/FreeTypingRow';
 
 interface Subtitle {
   start: number;
@@ -89,6 +90,7 @@ export default function LessonPage() {
   const [videoBlurLevel, setVideoBlurLevel] = useState<0 | 1 | 2>(0);
   const [bookmarkedIndices, setBookmarkedIndices] = useState<Set<number>>(new Set());
   const [shadowingMode, setShadowingMode] = useState(false);
+  const [freeTypingMode, setFreeTypingMode] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const blankRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -296,6 +298,10 @@ export default function LessonPage() {
     setShadowingMode(prev => !prev);
   }, []);
 
+  const toggleFreeTypingMode = useCallback(() => {
+    setFreeTypingMode(prev => !prev);
+  }, []);
+
   // Select a subtitle row
   const selectSubtitle = useCallback((index: number) => {
     setCurrentIndex(index);
@@ -315,10 +321,19 @@ export default function LessonPage() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-      if (e.code === 'Space') { e.preventDefault(); seekToSubtitle(currentIndex); }
-      if (e.code === 'ArrowLeft' && !isInput) { e.preventDefault(); seekBy(-2); }
-      if (e.code === 'ArrowRight' && !isInput) { e.preventDefault(); seekBy(2); }
-      if (e.code === 'ArrowUp') {
+
+      // In free typing mode: space is normal char in textarea, arrows with Ctrl seek
+      if (freeTypingMode) {
+        if (e.code === 'Space' && !isInput) { e.preventDefault(); seekToSubtitle(currentIndex); }
+        if (e.code === 'ArrowLeft' && !isInput) { e.preventDefault(); seekBy(-2); }
+        if (e.code === 'ArrowRight' && !isInput) { e.preventDefault(); seekBy(2); }
+      } else {
+        if (e.code === 'Space') { e.preventDefault(); seekToSubtitle(currentIndex); }
+        if (e.code === 'ArrowLeft' && !isInput) { e.preventDefault(); seekBy(-2); }
+        if (e.code === 'ArrowRight' && !isInput) { e.preventDefault(); seekBy(2); }
+      }
+
+      if (e.code === 'ArrowUp' && !isInput) {
         e.preventDefault();
         if (shadowingMode) {
           const visibleIndices = lesson?.subtitles
@@ -330,7 +345,7 @@ export default function LessonPage() {
           if (currentIndex > 0) selectSubtitle(currentIndex - 1);
         }
       }
-      if (e.code === 'ArrowDown') {
+      if (e.code === 'ArrowDown' && !isInput) {
         e.preventDefault();
         if (shadowingMode) {
           const visibleIndices = lesson?.subtitles
@@ -347,7 +362,7 @@ export default function LessonPage() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlay, seekBy, seekToSubtitle, currentIndex, lesson, selectSubtitle, cycleVideoBlur, shadowingMode, bookmarkedIndices]);
+  }, [togglePlay, seekBy, seekToSubtitle, currentIndex, lesson, selectSubtitle, cycleVideoBlur, shadowingMode, bookmarkedIndices, freeTypingMode]);
 
   // Scroll active subtitle into view
   useEffect(() => {
@@ -544,50 +559,64 @@ export default function LessonPage() {
               blankMode={blankMode}
               videoBlurLevel={videoBlurLevel}
               shadowingMode={shadowingMode}
+              freeTypingMode={freeTypingMode}
               bookmarkCount={bookmarkedIndices.size}
               onModeChange={setBlankMode}
               onCycleBlur={cycleVideoBlur}
               onToggleShadowing={toggleShadowingMode}
+              onToggleFreeTyping={toggleFreeTypingMode}
             />
           </div>
         </div>
 
-        {/* RIGHT: Subtitle list */}
-        <div className={`lesson-right ${shadowingMode ? 'lesson-right-shadowing' : ''}`} ref={subtitleListRef}>
-          {shadowingMode && bookmarkedIndices.size === 0 && (
-            <div className="shadowing-empty">
-              <span className="shadowing-empty-icon">🔖</span>
-              <p className="shadowing-empty-text">Keine Sätze markiert</p>
-              <p className="shadowing-empty-hint">Klicke auf ☆ neben einem Satz, um ihn zu markieren.</p>
-            </div>
+        {/* RIGHT: Subtitle list OR Free typing panel */}
+        <div className={`lesson-right ${shadowingMode ? 'lesson-right-shadowing' : ''} ${freeTypingMode ? 'lesson-right-freetype' : ''}`} ref={subtitleListRef}>
+          {freeTypingMode ? (
+            <FreeTypingPanel
+              subtitles={lesson.subtitles}
+              onSeekBy={seekBy}
+              onTogglePlay={togglePlay}
+              isPlaying={isPlaying}
+            />
+          ) : (
+            <>
+              {shadowingMode && bookmarkedIndices.size === 0 && (
+                <div className="shadowing-empty">
+                  <span className="shadowing-empty-icon">🔖</span>
+                  <p className="shadowing-empty-text">Keine Sätze markiert</p>
+                  <p className="shadowing-empty-hint">Klicke auf ☆ neben einem Satz, um ihn zu markieren.</p>
+                </div>
+              )}
+              {lesson.subtitles.map((sub, i) => {
+                const tokens = subTokens[i];
+                if (!tokens) return null;
+                if (shadowingMode && !bookmarkedIndices.has(i)) return null;
+
+                return (
+                  <ClozeRow
+                    key={i}
+                    sub={sub}
+                    index={i}
+                    isActive={i === currentIndex}
+                    isCompleted={completedIndices.includes(i)}
+                    isBookmarked={bookmarkedIndices.has(i)}
+                    tokens={tokens}
+                    subResults={blankResults[i] || {}}
+                    subInputs={blankInputs[i] || {}}
+                    revealedWords={revealedWords}
+                    blankMode={blankMode}
+                    blankRefs={blankRefs}
+                    hiddenWordRefs={hiddenWordRefs}
+                    onSelect={selectSubtitle}
+                    onChange={handleBlankChange}
+                    onKeyDown={handleBlankKeyDown}
+                    onRevealWord={revealWord}
+                    onToggleBookmark={toggleBookmark}
+                  />
+                );
+              })}
+            </>
           )}
-          {lesson.subtitles.map((sub, i) => {
-            const tokens = subTokens[i];
-            if (!tokens) return null;
-            if (shadowingMode && !bookmarkedIndices.has(i)) return null;
-            return (
-              <ClozeRow
-                key={i}
-                sub={sub}
-                index={i}
-                isActive={i === currentIndex}
-                isCompleted={completedIndices.includes(i)}
-                isBookmarked={bookmarkedIndices.has(i)}
-                tokens={tokens}
-                subResults={blankResults[i] || {}}
-                subInputs={blankInputs[i] || {}}
-                revealedWords={revealedWords}
-                blankMode={blankMode}
-                blankRefs={blankRefs}
-                hiddenWordRefs={hiddenWordRefs}
-                onSelect={selectSubtitle}
-                onChange={handleBlankChange}
-                onKeyDown={handleBlankKeyDown}
-                onRevealWord={revealWord}
-                onToggleBookmark={toggleBookmark}
-              />
-            );
-          })}
         </div>
       </div>
     </div>

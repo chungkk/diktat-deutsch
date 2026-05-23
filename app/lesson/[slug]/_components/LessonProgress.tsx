@@ -7,10 +7,12 @@ interface LessonProgressProps {
   blankMode: 50 | 100;
   videoBlurLevel: 0 | 1 | 2;
   shadowingMode: boolean;
+  freeTypingMode: boolean;
   bookmarkCount: number;
   onModeChange: (mode: 50 | 100) => void;
   onCycleBlur: () => void;
   onToggleShadowing: () => void;
+  onToggleFreeTyping: () => void;
 }
 
 export default function LessonProgress({
@@ -20,10 +22,12 @@ export default function LessonProgress({
   blankMode,
   videoBlurLevel,
   shadowingMode,
+  freeTypingMode,
   bookmarkCount,
   onModeChange,
   onCycleBlur,
   onToggleShadowing,
+  onToggleFreeTyping,
 }: LessonProgressProps) {
   return (
     <>
@@ -40,19 +44,25 @@ export default function LessonProgress({
 
       {/* Difficulty toggle */}
       <div className="mode-toggle">
-        <span className="mode-label">Schwierigkeit</span>
+        <span className="mode-label">Modus</span>
         <div className="mode-buttons">
           <button
-            className={`mode-btn ${blankMode === 50 ? 'mode-btn-active' : ''}`}
-            onClick={() => onModeChange(50)}
+            className={`mode-btn ${!freeTypingMode && blankMode === 50 ? 'mode-btn-active' : ''}`}
+            onClick={() => { onModeChange(50); if (freeTypingMode) onToggleFreeTyping(); }}
           >
-            50% Lücken
+            50%
           </button>
           <button
-            className={`mode-btn ${blankMode === 100 ? 'mode-btn-active' : ''}`}
-            onClick={() => onModeChange(100)}
+            className={`mode-btn ${!freeTypingMode && blankMode === 100 ? 'mode-btn-active' : ''}`}
+            onClick={() => { onModeChange(100); if (freeTypingMode) onToggleFreeTyping(); }}
           >
-            100% Diktat
+            100%
+          </button>
+          <button
+            className={`mode-btn ${freeTypingMode ? 'mode-btn-active mode-btn-freetype' : ''}`}
+            onClick={onToggleFreeTyping}
+          >
+            ✏️ Frei
           </button>
         </div>
       </div>

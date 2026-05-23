@@ -1029,6 +1029,16 @@ a:hover { color: var(--color-accent-hover); }
 .podcast-type-badge { padding: 0.2rem 0.5rem; border-radius: 0.5rem; font-size: 0.72rem; font-weight: 900; background: rgba(34,197,94,0.12); color: var(--color-accent); border: 2px solid rgba(34,197,94,0.25); }
 .podcast-speaker-badge { padding: 0.2rem 0.5rem; border-radius: 999px; font-size: 0.68rem; font-weight: 700; color: var(--color-text-secondary); background: rgba(255,255,255,0.05); border: 1.5px solid var(--color-border); }
 
+/* ═══ FREE TYPING MODE ═══ */
+.lesson-right-freetype {
+  display: flex !important; flex-direction: column !important; padding: 0 !important;
+}
+/* Mode button — sky variant for free typing */
+.mode-btn-freetype {
+  background: var(--color-sky) !important; color: #0a1a0e !important;
+  box-shadow: 2px 2px 0 rgba(14,116,144,0.6) !important;
+}
+
 /* ═══ RESPONSIVE ═══ */
 @media (max-width: 900px) {
   .lesson-split { display: block; }

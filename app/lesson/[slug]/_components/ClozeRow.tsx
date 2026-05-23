@@ -153,6 +153,17 @@ export default function ClozeRow({
                     e.preventDefault();
                     e.stopPropagation();
                     onRevealWord(index, wi);
+                    // Auto-focus next hidden word after reveal
+                    setTimeout(() => {
+                      const hiddenIndices = words
+                        .map((_, i) => i)
+                        .filter(i => i !== wi && !blanks.has(i) && !revealedWords.has(`${index}-${i}`) && blankMode === 100);
+                      if (hiddenIndices.length > 0) {
+                        // Pick the next one after current position, or first available
+                        const next = hiddenIndices.find(i => i > wi) ?? hiddenIndices[0];
+                        hiddenWordRefs.current?.[`${index}-${next}`]?.focus();
+                      }
+                    }, 50);
                   }
                   if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
                     e.preventDefault();

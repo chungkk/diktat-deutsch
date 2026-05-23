@@ -92,6 +92,7 @@ export default function LessonPage() {
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const blankRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const hiddenWordRefs = useRef<Record<string, HTMLSpanElement | null>>({});
   const subtitleListRef = useRef<HTMLDivElement | null>(null);
   const autoPauseTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoPauseFallback = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -578,6 +579,7 @@ export default function LessonPage() {
                 revealedWords={revealedWords}
                 blankMode={blankMode}
                 blankRefs={blankRefs}
+                hiddenWordRefs={hiddenWordRefs}
                 onSelect={selectSubtitle}
                 onChange={handleBlankChange}
                 onKeyDown={handleBlankKeyDown}

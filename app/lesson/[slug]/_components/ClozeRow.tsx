@@ -1,5 +1,5 @@
 'use client';
-import { RefObject } from 'react';
+import { RefObject, useCallback } from 'react';
 
 interface Subtitle {
   start: number;
@@ -24,6 +24,7 @@ interface ClozeRowProps {
   revealedWords: Set<string>;
   blankMode: 50 | 100;
   blankRefs: RefObject<Record<string, HTMLInputElement | null>>;
+  hiddenWordRefs: RefObject<Record<string, HTMLSpanElement | null>>;
   onSelect: (index: number) => void;
   onChange: (subIdx: number, wordIdx: number, value: string) => void;
   onKeyDown: (e: React.KeyboardEvent, subIdx: number, wordIdx: number) => void;
@@ -48,6 +49,7 @@ export default function ClozeRow({
   subInputs,
   revealedWords,
   blankMode,
+  hiddenWordRefs,
   blankRefs,
   onSelect,
   onChange,
@@ -137,12 +139,36 @@ export default function ClozeRow({
             return (
               <span
                 key={wi}
+                ref={(el) => {
+                  if (hiddenWordRefs.current) hiddenWordRefs.current[`${index}-${wi}`] = el;
+                }}
                 className="cloze-word cloze-square-box"
+                tabIndex={0}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
                   onRevealWord(index, wi);
                 }}
-                title="Doppelklick zum Anzeigen"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onRevealWord(index, wi);
+                  }
+                  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Collect all hidden word indices in this row
+                    const hiddenIndices = words
+                      .map((_, i) => i)
+                      .filter(i => !blanks.has(i) && !revealedWords.has(`${index}-${i}`) && blankMode === 100);
+                    const pos = hiddenIndices.indexOf(wi);
+                    const nextPos = e.key === 'ArrowLeft' ? pos - 1 : pos + 1;
+                    if (nextPos >= 0 && nextPos < hiddenIndices.length) {
+                      hiddenWordRefs.current?.[`${index}-${hiddenIndices[nextPos]}`]?.focus();
+                    }
+                  }
+                }}
+                title="Enter zum Anzeigen / ← → zum Navigieren"
               >
                 {cleanWord.replace(/./g, '■')}
                 {punct}{' '}

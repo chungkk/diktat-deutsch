@@ -133,11 +133,35 @@ export async function POST(req: NextRequest) {
           prompt: 'Hallo und herzlich willkommen. Dies ist eine deutsche Sendung. Bitte transkribieren Sie alles genau, einschließlich aller Wörter, Satzzeichen und Pausen.',
         });
 
-        const subtitles = (response.segments || []).map((seg: { start: number; end: number; text: string }) => ({
-          start: seg.start,
-          dur: seg.end - seg.start,
-          text: seg.text.trim(),
-        })).filter((s: { text: string }) => s.text.length > 0);
+        // Split each Whisper segment into individual sentences for shorter subtitle lines
+        const subtitles: { start: number; dur: number; text: string }[] = [];
+        for (const seg of (response.segments || []) as { start: number; end: number; text: string }[]) {
+          const trimmed = seg.text.trim();
+          if (!trimmed) continue;
+
+          // Split on sentence-ending punctuation, keeping the delimiter attached
+          const sentences = trimmed
+            .split(/(?<=[.!?])\s+/)
+            .map(s => s.trim())
+            .filter(s => s.length > 0);
+
+          if (sentences.length <= 1) {
+            // Single sentence or no split possible — keep as-is
+            subtitles.push({ start: seg.start, dur: seg.end - seg.start, text: trimmed });
+          } else {
+            // Distribute time proportionally by character length
+            const totalChars = sentences.reduce((sum, s) => sum + s.length, 0);
+            const segDur = seg.end - seg.start;
+            let cursor = seg.start;
+
+            for (const sentence of sentences) {
+              const ratio = sentence.length / totalChars;
+              const dur = segDur * ratio;
+              subtitles.push({ start: cursor, dur, text: sentence });
+              cursor += dur;
+            }
+          }
+        }
 
         if (subtitles.length === 0) {
           return NextResponse.json(

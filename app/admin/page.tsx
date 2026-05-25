@@ -11,6 +11,21 @@ interface Lesson {
   subtitles: Subtitle[]; isPublished: boolean; createdAt: string;
 }
 
+interface ChannelVideo {
+  id: string;
+  title: string;
+  duration: number;
+  thumbnail: string;
+  url: string;
+}
+
+function formatDuration(seconds: number): string {
+  if (!seconds) return '–';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -37,6 +52,15 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false);
   const [fixFile, setFixFile] = useState<File | null>(null);
   const [fixLoading, setFixLoading] = useState(false);
+
+  // Channel import state
+  const [channelUrl, setChannelUrl] = useState('');
+  const [channelVideos, setChannelVideos] = useState<ChannelVideo[]>([]);
+  const [channelLoading, setChannelLoading] = useState(false);
+  const [channelError, setChannelError] = useState('');
+  const [maxResults, setMaxResults] = useState(30);
+  // Track which video is currently being fetched (its ID) for loading state on buttons
+  const [fetchingVideoId, setFetchingVideoId] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === 'unauthenticated') { router.push('/login'); return; }
@@ -84,7 +108,6 @@ export default function AdminPage() {
       if (data.error) { setSubError(data.error); }
       else {
         setSubtitles(data.subtitles);
-        // Auto-fill title & description from YouTube video metadata
         if (data.videoTitle) {
           if (!title) setTitle(data.videoTitle);
           if (!description) setDescription(data.videoTitle);
@@ -119,7 +142,6 @@ export default function AdminPage() {
     if (!uploadFile) return;
     setSubLoading(true); setSubError('');
     try {
-      // Upload video
       const uploadForm = new FormData();
       uploadForm.append('file', uploadFile);
       const uploadRes = await fetch('/api/upload', { method: 'POST', body: uploadForm });
@@ -127,7 +149,6 @@ export default function AdminPage() {
       if (uploadData.error) { setSubError(uploadData.error); setSubLoading(false); return; }
       setVideoUrl(uploadData.url);
 
-      // Transcribe
       const transcribeForm = new FormData();
       transcribeForm.append('file', uploadFile);
       const transRes = await fetch('/api/transcribe', { method: 'POST', body: transcribeForm });
@@ -197,9 +218,78 @@ export default function AdminPage() {
     fetchLessons();
   };
 
+  // ── Channel Import ──
+
+  const fetchChannelVideos = async () => {
+    if (!channelUrl.trim()) return;
+    setChannelLoading(true);
+    setChannelError('');
+    setChannelVideos([]);
+    try {
+      const res = await fetch('/api/youtube-channel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelUrl: channelUrl.trim(), maxResults }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setChannelError(data.error);
+      } else {
+        setChannelVideos(data.videos || []);
+      }
+    } catch {
+      setChannelError('Fehler beim Laden der Videos');
+    }
+    setChannelLoading(false);
+  };
+
+  const isVideoImported = (videoId: string) => {
+    return lessons.some(l => l.youtubeId === videoId);
+  };
+
+  // Open single-lesson modal with a channel video pre-filled, and auto-fetch subs
+  const openChannelVideo = async (video: ChannelVideo, withWhisper: boolean) => {
+    resetForm();
+    setYoutubeUrl(video.id);
+    setTitle(video.title);
+    setDescription(video.title);
+    setThumbnail(video.thumbnail);
+    setDuration(video.duration);
+    setUseWhisper(withWhisper);
+    setShowModal(true);
+
+    // Auto-fetch subtitles
+    setSubLoading(true);
+    setSubError('');
+    setFetchingVideoId(video.id);
+    try {
+      const endpoint = withWhisper ? '/api/youtube-whisper' : '/api/youtube-subs';
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoId: video.id, lang: 'de' }),
+      });
+      const data = await res.json();
+      if (data.error) { setSubError(data.error); }
+      else {
+        setSubtitles(data.subtitles);
+        if (data.videoTitle) {
+          setTitle(data.videoTitle);
+          setDescription(data.videoTitle);
+        }
+        if (data.videoThumbnail) setThumbnail(data.videoThumbnail);
+        if (data.videoDuration) setDuration(data.videoDuration);
+      }
+    } catch { setSubError('Fehler beim Laden der Untertitel'); }
+    setSubLoading(false);
+    setFetchingVideoId(null);
+  };
+
   if (status === 'loading' || loading) {
     return <div className="loading"><div className="spinner" /></div>;
   }
+
+  const importedCount = channelVideos.filter(v => isVideoImported(v.id)).length;
 
   return (
     <div className="container">
@@ -211,6 +301,178 @@ export default function AdminPage() {
         <button className="btn btn-primary" onClick={openNew}>+ Neue Lektion</button>
       </div>
 
+      {/* ── Channel Import Section ── */}
+      <div className="card" style={{ marginBottom: '2rem', padding: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+          <span style={{ fontSize: '1.5rem' }}>📺</span>
+          <div>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--color-accent)', margin: 0 }}>
+              Channel Import
+            </h2>
+            <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', fontWeight: 700, margin: 0 }}>
+              YouTube-Kanal-Link einfügen → Videos laden → einzeln hinzufügen
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: '1rem' }}>
+          <input
+            className="form-input"
+            value={channelUrl}
+            onChange={e => setChannelUrl(e.target.value)}
+            placeholder="https://www.youtube.com/@37Grad/shorts"
+            style={{ flex: 1 }}
+            onKeyDown={e => { if (e.key === 'Enter') fetchChannelVideos(); }}
+          />
+          <select
+            className="form-select"
+            value={maxResults}
+            onChange={e => setMaxResults(Number(e.target.value))}
+            style={{ width: 80 }}
+            title="Max Videos"
+          >
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={30}>30</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+          <button
+            className="btn btn-primary"
+            onClick={fetchChannelVideos}
+            disabled={channelLoading || !channelUrl.trim()}
+          >
+            {channelLoading ? '⏳ ...' : '🔍 Get'}
+          </button>
+        </div>
+
+        {channelError && <div className="auth-error">{channelError}</div>}
+
+        {channelLoading && (
+          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-muted)' }}>
+            <div className="spinner" style={{ margin: '0 auto 1rem' }} />
+            <p style={{ fontWeight: 800, fontSize: '0.85rem' }}>Videos werden geladen...</p>
+          </div>
+        )}
+
+        {channelVideos.length > 0 && (
+          <>
+            <div style={{
+              fontSize: '0.82rem', fontWeight: 800, color: 'var(--color-text-secondary)',
+              marginBottom: '0.75rem', padding: '0.5rem 0.75rem',
+              background: 'var(--color-bg-input)', borderRadius: '0.75rem',
+              border: '2px solid var(--color-border)',
+            }}>
+              📊 {channelVideos.length} Videos · {importedCount} bereits importiert · {channelVideos.length - importedCount} neu
+            </div>
+
+            {/* Video grid */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+              gap: '0.75rem',
+              maxHeight: '65vh',
+              overflowY: 'auto',
+              padding: '0.25rem',
+            }}>
+              {channelVideos.map(video => {
+                const imported = isVideoImported(video.id);
+                const isFetching = fetchingVideoId === video.id;
+                return (
+                  <div
+                    key={video.id}
+                    style={{
+                      background: imported ? 'var(--color-bg-card)' : 'var(--color-bg-card)',
+                      border: `2.5px solid ${imported ? 'rgba(74,222,128,0.2)' : 'var(--color-border)'}`,
+                      borderRadius: '1.25rem',
+                      overflow: 'hidden',
+                      transition: 'all 0.18s',
+                      opacity: imported ? 0.4 : 1,
+                      filter: imported ? 'blur(1.5px) grayscale(0.5)' : 'none',
+                      boxShadow: '3px 3px 0 rgba(0,0,0,0.3)',
+                      pointerEvents: imported ? 'none' : 'auto',
+                    }}
+                  >
+                    {/* Thumbnail */}
+                    <div style={{ position: 'relative', paddingTop: '56.25%', background: '#000' }}>
+                      <img
+                        src={video.thumbnail}
+                        alt={video.title}
+                        loading="lazy"
+                        style={{
+                          position: 'absolute', top: 0, left: 0,
+                          width: '100%', height: '100%', objectFit: 'cover',
+                        }}
+                      />
+                      {video.duration > 0 && (
+                        <span style={{
+                          position: 'absolute', bottom: 6, right: 6,
+                          padding: '0.15rem 0.5rem', borderRadius: '0.5rem',
+                          background: 'rgba(0,0,0,0.8)', color: 'white',
+                          fontSize: '0.72rem', fontWeight: 900,
+                        }}>
+                          {formatDuration(video.duration)}
+                        </span>
+                      )}
+                      {imported && (
+                        <div style={{
+                          position: 'absolute', inset: 0,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          background: 'rgba(0,0,0,0.4)',
+                        }}>
+                          <span style={{
+                            padding: '0.3rem 0.8rem', borderRadius: '999px',
+                            background: 'rgba(74,222,128,0.9)', color: '#0a1a0e',
+                            fontSize: '0.75rem', fontWeight: 900,
+                          }}>
+                            ✓ Bereits importiert
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Info + action buttons */}
+                    <div style={{ padding: '0.6rem 0.75rem' }}>
+                      <p style={{
+                        fontSize: '0.8rem', fontWeight: 800,
+                        color: 'var(--color-text-primary)',
+                        display: '-webkit-box', WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                        lineHeight: 1.35, margin: '0 0 0.5rem 0',
+                      }}>
+                        {video.title}
+                      </p>
+
+                      {!imported && (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            className="btn btn-primary btn-sm"
+                            style={{ flex: 1, fontSize: '0.7rem', padding: '0.3rem 0.5rem' }}
+                            onClick={() => openChannelVideo(video, false)}
+                            disabled={isFetching}
+                          >
+                            {isFetching && !useWhisper ? '⏳...' : '📝 YT Subs'}
+                          </button>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            style={{ flex: 1, fontSize: '0.7rem', padding: '0.3rem 0.5rem' }}
+                            onClick={() => openChannelVideo(video, true)}
+                            disabled={isFetching}
+                          >
+                            {isFetching && useWhisper ? '⏳...' : '🎙 Whisper'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── Lesson Table ── */}
       {lessons.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">📚</div>
@@ -290,7 +552,7 @@ export default function AdminPage() {
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input className="form-input" value={youtubeUrl} onChange={e => setYoutubeUrl(e.target.value)} placeholder="https://youtube.com/watch?v=..." />
                   <button className="btn btn-primary" onClick={fetchYoutubeSubs} disabled={subLoading || !youtubeUrl}>
-                    {subLoading ? '...' : useWhisper ? '🎙 Whisper' : 'Subs laden'}
+                    {subLoading ? '⏳ ...' : useWhisper ? '🎙 Whisper' : 'Subs laden'}
                   </button>
                 </div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginTop: 8, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
@@ -330,6 +592,22 @@ export default function AdminPage() {
             )}
 
             {subError && <div className="auth-error">{subError}</div>}
+
+            {subLoading && (
+              <div style={{
+                textAlign: 'center', padding: '1.5rem',
+                background: 'rgba(34,197,94,0.06)', borderRadius: '1rem',
+                border: '2px solid rgba(34,197,94,0.2)', marginBottom: '1rem',
+              }}>
+                <div className="spinner" style={{ margin: '0 auto 0.75rem' }} />
+                <p style={{ fontWeight: 800, fontSize: '0.82rem', color: 'var(--color-accent)', margin: 0 }}>
+                  {useWhisper ? '🎙 Whisper transkribiert...' : '📝 Untertitel werden geladen...'}
+                </p>
+                <p style={{ fontWeight: 700, fontSize: '0.75rem', color: 'var(--color-text-muted)', margin: '0.3rem 0 0' }}>
+                  {useWhisper ? 'Das kann 1-2 Minuten dauern' : 'Einen Moment bitte'}
+                </p>
+              </div>
+            )}
 
             {subtitles.length > 0 && (
               <div className="form-group">

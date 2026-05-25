@@ -51,7 +51,7 @@ export async function PUT(
     const body = await req.json();
     await dbConnect();
 
-    const { title, description, level, videoType, youtubeId, videoUrl, subtitles, isPublished, thumbnail, duration } = body;
+    const { title, description, level, videoType, youtubeId, videoUrl, subtitles, isPublished, thumbnail, duration, sortOrder } = body;
     const updateData: Record<string, unknown> = {};
     if (title !== undefined) updateData.title = title;
     if (description !== undefined) updateData.description = description;
@@ -63,6 +63,7 @@ export async function PUT(
     if (isPublished !== undefined) updateData.isPublished = isPublished;
     if (thumbnail !== undefined) updateData.thumbnail = thumbnail;
     if (duration !== undefined) updateData.duration = duration;
+    if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
 
     const lesson = await Lesson.findByIdAndUpdate(id, updateData, { new: true });
     if (!lesson) {

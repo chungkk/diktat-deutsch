@@ -15,7 +15,7 @@ export async function GET() {
       filter = { isPublished: true };
     }
 
-    const lessons = await Lesson.find(filter).sort({ createdAt: -1 });
+    const lessons = await Lesson.find(filter).sort({ sortOrder: 1, createdAt: 1 });
     return NextResponse.json(lessons);
   } catch (error: unknown) {
     console.error('Error fetching lessons:', error);
@@ -50,8 +50,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Video-URL ist erforderlich' }, { status: 400 });
     }
 
+    // Auto-assign sortOrder: put new lesson at the end
+    const maxLesson = await Lesson.findOne().sort({ sortOrder: -1 }).select('sortOrder');
+    const nextSortOrder = (maxLesson?.sortOrder ?? -1) + 1;
+
     const lesson = new Lesson({
       title: title.trim(), description, level, videoType, youtubeId, videoUrl, subtitles, isPublished, thumbnail, duration,
+      sortOrder: nextSortOrder,
     });
     await lesson.save();
     return NextResponse.json(lesson, { status: 201 });

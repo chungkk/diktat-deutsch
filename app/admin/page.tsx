@@ -218,6 +218,18 @@ export default function AdminPage() {
     fetchLessons();
   };
 
+  const swapLessons = async (indexA: number, indexB: number) => {
+    if (indexB < 0 || indexB >= lessons.length) return;
+    const a = lessons[indexA];
+    const b = lessons[indexB];
+    await fetch('/api/lessons/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lessonIdA: a._id, lessonIdB: b._id }),
+    });
+    fetchLessons();
+  };
+
   // ── Channel Import ──
 
   const fetchChannelVideos = async () => {
@@ -483,12 +495,13 @@ export default function AdminPage() {
           <table className="admin-table">
             <thead>
               <tr>
-                <th>Titel</th><th>Level</th><th>Typ</th><th>Sätze</th><th>Status</th><th>Aktionen</th>
+                <th style={{ width: 50 }}>#</th><th>Titel</th><th>Level</th><th>Typ</th><th>Sätze</th><th>Status</th><th>Sortieren</th><th>Aktionen</th>
               </tr>
             </thead>
             <tbody>
-              {lessons.map(lesson => (
+              {lessons.map((lesson, idx) => (
                 <tr key={lesson._id}>
+                  <td style={{ fontWeight: 900, color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>{idx + 1}</td>
                   <td style={{ fontWeight: 500 }}>{lesson.title}</td>
                   <td><span className="lesson-level">{lesson.level}</span></td>
                   <td>{lesson.videoType === 'youtube' ? '▶ YT' : '📁'}</td>
@@ -497,6 +510,24 @@ export default function AdminPage() {
                     <span className={`status-badge ${lesson.isPublished ? 'status-published' : 'status-draft'}`}>
                       {lesson.isPublished ? 'Veröffentlicht' : 'Entwurf'}
                     </span>
+                  </td>
+                  <td>
+                    <div className="action-btns">
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem', minWidth: 0 }}
+                        onClick={() => swapLessons(idx, idx - 1)}
+                        disabled={idx === 0}
+                        title="Nach oben"
+                      >↑</button>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem', minWidth: 0 }}
+                        onClick={() => swapLessons(idx, idx + 1)}
+                        disabled={idx === lessons.length - 1}
+                        title="Nach unten"
+                      >↓</button>
+                    </div>
                   </td>
                   <td>
                     <div className="action-btns">

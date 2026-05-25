@@ -146,10 +146,7 @@ export default function HomePage() {
 
     Promise.all([fetchLessons(), fetchProgress()]).then(([lessonsData, progressData]) => {
       if (lessonsData) {
-        const sorted = [...lessonsData].sort(
-          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-        );
-        setLessons(sorted);
+        setLessons(lessonsData);
         setLessonsReady(true);
       }
       if (progressData) {

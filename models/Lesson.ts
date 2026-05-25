@@ -19,6 +19,7 @@ export interface ILesson extends Document {
   level: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
   createdAt: Date;
   isPublished: boolean;
+  sortOrder: number;
 }
 
 const SubtitleSchema: Schema = new Schema({
@@ -81,6 +82,10 @@ const LessonSchema: Schema = new Schema({
   isPublished: {
     type: Boolean,
     default: false,
+  },
+  sortOrder: {
+    type: Number,
+    default: 0,
   },
 });
 

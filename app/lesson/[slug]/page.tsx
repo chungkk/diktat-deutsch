@@ -295,11 +295,31 @@ export default function LessonPage() {
   }, []);
 
   const toggleShadowingMode = useCallback(() => {
-    setShadowingMode(prev => !prev);
-  }, []);
+    setShadowingMode(prev => {
+      const next = !prev;
+      if (next) {
+        // Turn off free typing when entering shadowing
+        setFreeTypingMode(false);
+        // Auto-select the first bookmarked sentence
+        const firstBookmarked = Array.from(bookmarkedIndices).sort((a, b) => a - b)[0];
+        if (firstBookmarked !== undefined) {
+          setCurrentIndex(firstBookmarked);
+          setTimeout(() => seekToSubtitle(firstBookmarked), 50);
+        }
+      }
+      return next;
+    });
+  }, [bookmarkedIndices, seekToSubtitle]);
 
   const toggleFreeTypingMode = useCallback(() => {
-    setFreeTypingMode(prev => !prev);
+    setFreeTypingMode(prev => {
+      const next = !prev;
+      if (next) {
+        // Turn off shadowing when entering free typing
+        setShadowingMode(false);
+      }
+      return next;
+    });
   }, []);
 
   // Select a subtitle row

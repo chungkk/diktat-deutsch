@@ -47,14 +47,14 @@ export default function LessonProgress({
         <span className="mode-label">Modus</span>
         <div className="mode-buttons">
           <button
-            className={`mode-btn ${!freeTypingMode && blankMode === 50 ? 'mode-btn-active' : ''}`}
-            onClick={() => { onModeChange(50); if (freeTypingMode) onToggleFreeTyping(); }}
+            className={`mode-btn ${!freeTypingMode && !shadowingMode && blankMode === 50 ? 'mode-btn-active' : ''}`}
+            onClick={() => { onModeChange(50); if (freeTypingMode) onToggleFreeTyping(); if (shadowingMode) onToggleShadowing(); }}
           >
             50%
           </button>
           <button
-            className={`mode-btn ${!freeTypingMode && blankMode === 100 ? 'mode-btn-active' : ''}`}
-            onClick={() => { onModeChange(100); if (freeTypingMode) onToggleFreeTyping(); }}
+            className={`mode-btn ${!freeTypingMode && !shadowingMode && blankMode === 100 ? 'mode-btn-active' : ''}`}
+            onClick={() => { onModeChange(100); if (freeTypingMode) onToggleFreeTyping(); if (shadowingMode) onToggleShadowing(); }}
           >
             100%
           </button>

@@ -22,93 +22,100 @@ export async function POST(req: NextRequest) {
       apiKey: process.env.OPENAI_API_KEY,
     });
 
-    // Use WORD-level timestamps for precise subtitle alignment
+    // Use BOTH segment + word timestamps for precise yet natural subtitles
     const response = await openai.audio.transcriptions.create({
       file: file,
       model: 'whisper-1',
       language: 'de',
       response_format: 'verbose_json',
-      timestamp_granularities: ['word'],
+      timestamp_granularities: ['segment', 'word'],
       temperature: 0,
       prompt: 'Hallo und herzlich willkommen. Dies ist eine deutsche Sendung. Bitte transkribieren Sie alles genau, einschließlich aller Wörter, Satzzeichen und Pausen.',
     });
 
-    // ── Build subtitles from word-level timestamps ──
+    // ── Build subtitles: segment structure + word-level timing ──
     const MAX_SUBTITLE_LENGTH = 80;
     const subtitles: { start: number; dur: number; text: string }[] = [];
 
     interface TimedWord { word: string; start: number; end: number }
-    const words: TimedWord[] = (
+    const allWords: TimedWord[] = (
       (response as unknown as { words?: TimedWord[] }).words || []
     ).filter(w => w.word && w.word.trim());
 
-    if (words.length === 0) {
-      // Fallback: use segments if available
-      for (const seg of (response.segments || []) as { start: number; end: number; text: string }[]) {
-        const trimmed = seg.text.trim();
-        if (trimmed) subtitles.push({ start: seg.start, dur: seg.end - seg.start, text: trimmed });
-      }
-    } else {
-      const CONJUNCTIONS = new Set([
-        'und', 'oder', 'aber', 'denn', 'sondern', 'doch',
-        'weil', 'dass', 'als', 'wenn', 'ob', 'obwohl',
-      ]);
+    type Segment = { start: number; end: number; text: string };
+    const segments = ((response.segments || []) as Segment[]).filter(s => s.text.trim());
 
-      function isBreakAfter(w: string): 'sentence' | 'comma' | null {
-        if (/[.!?]$/.test(w)) return 'sentence';
-        if (/,$/.test(w)) return 'comma';
-        return null;
-      }
+    function findWordsInRange(segStart: number, segEnd: number): TimedWord[] {
+      return allWords.filter(w => w.start >= segStart - 0.05 && w.end <= segEnd + 0.05);
+    }
 
-      function isBreakBefore(w: string): boolean {
-        return CONJUNCTIONS.has(w.toLowerCase().replace(/[^a-zäöüß]/g, ''));
-      }
-
-      function flush(group: TimedWord[]) {
-        if (group.length === 0) return;
-        const text = group.map(w => w.word).join(' ').trim();
-        if (!text) return;
-        subtitles.push({
-          start: group[0].start,
-          dur: group[group.length - 1].end - group[0].start,
-          text,
-        });
-      }
-
-      let currentGroup: TimedWord[] = [];
-      let currentLen = 0;
-
-      for (let i = 0; i < words.length; i++) {
-        const w = words[i];
-        const wordText = w.word.trim();
-        const addedLen = currentLen === 0 ? wordText.length : wordText.length + 1;
-
-        if (currentLen + addedLen > MAX_SUBTITLE_LENGTH && currentGroup.length > 0) {
-          flush(currentGroup);
-          currentGroup = [];
-          currentLen = 0;
-        }
-
-        currentGroup.push(w);
-        currentLen += addedLen;
-
-        const breakType = isBreakAfter(wordText);
-        if (breakType === 'sentence') {
-          flush(currentGroup);
-          currentGroup = [];
-          currentLen = 0;
-        } else if (breakType === 'comma' && currentLen >= 30) {
-          flush(currentGroup);
-          currentGroup = [];
-          currentLen = 0;
-        } else if (i + 1 < words.length && isBreakBefore(words[i + 1].word.trim()) && currentLen >= 25) {
-          flush(currentGroup);
-          currentGroup = [];
-          currentLen = 0;
+    function splitLongText(text: string): string[] {
+      const sentences = text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 0);
+      const result: string[] = [];
+      for (const sentence of sentences) {
+        if (sentence.length <= MAX_SUBTITLE_LENGTH) { result.push(sentence); continue; }
+        const commaParts = sentence.split(/(?<=,)\s*/).map(s => s.trim()).filter(s => s.length > 0);
+        const afterComma = mergeFragments(commaParts);
+        for (const piece of afterComma) {
+          if (piece.length <= MAX_SUBTITLE_LENGTH) result.push(piece);
+          else result.push(...splitAtConjunctions(piece));
         }
       }
+      return result;
+    }
 
-      flush(currentGroup);
+    function mergeFragments(parts: string[]): string[] {
+      if (parts.length <= 1) return parts;
+      const merged: string[] = [];
+      let buffer = parts[0];
+      for (let i = 1; i < parts.length; i++) {
+        const combined = buffer + ' ' + parts[i];
+        if (combined.length <= MAX_SUBTITLE_LENGTH) buffer = combined;
+        else { merged.push(buffer); buffer = parts[i]; }
+      }
+      if (buffer) merged.push(buffer);
+      return merged;
+    }
+
+    function splitAtConjunctions(text: string): string[] {
+      const parts = text.split(/\s+(?=(?:und|oder|aber|denn|sondern|doch|weil|dass|als|wenn|ob|obwohl)\s)/i)
+        .map(s => s.trim()).filter(s => s.length > 0);
+      return parts.length > 1 ? mergeFragments(parts) : [text];
+    }
+
+    for (const seg of segments) {
+      const trimmed = seg.text.trim();
+      if (!trimmed) continue;
+
+      const segWords = findWordsInRange(seg.start, seg.end);
+      const pieces = splitLongText(trimmed);
+
+      if (pieces.length <= 1) {
+        const timing = segWords.length > 0
+          ? { start: segWords[0].start, end: segWords[segWords.length - 1].end }
+          : { start: seg.start, end: seg.end };
+        subtitles.push({ start: timing.start, dur: timing.end - timing.start, text: trimmed });
+      } else {
+        let wordCursor = 0;
+        for (const piece of pieces) {
+          const pieceTokens = piece.toLowerCase().replace(/[^a-zäöüß0-9\s]/g, '').trim().split(/\s+/).filter(t => t.length > 0);
+          const tokenCount = pieceTokens.length;
+          if (tokenCount === 0 || wordCursor >= segWords.length) {
+            const ratio = piece.length / trimmed.length;
+            const dur = (seg.end - seg.start) * ratio;
+            subtitles.push({ start: seg.start, dur, text: piece });
+            continue;
+          }
+          const startIdx = wordCursor;
+          const endIdx = Math.min(wordCursor + tokenCount - 1, segWords.length - 1);
+          wordCursor = endIdx + 1;
+          subtitles.push({
+            start: segWords[startIdx].start,
+            dur: segWords[endIdx].end - segWords[startIdx].start,
+            text: piece,
+          });
+        }
+      }
     }
 
     return NextResponse.json({ subtitles });

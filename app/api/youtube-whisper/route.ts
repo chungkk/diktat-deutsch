@@ -123,106 +123,109 @@ export async function POST(req: NextRequest) {
 
       try {
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+        // Use WORD-level timestamps for precise subtitle alignment
         const response = await openai.audio.transcriptions.create({
           file: whisperFile,
           model: 'whisper-1',
           language: 'de',
           response_format: 'verbose_json',
-          timestamp_granularities: ['segment'],
+          timestamp_granularities: ['word'],
           temperature: 0,
           prompt: 'Hallo und herzlich willkommen. Dies ist eine deutsche Sendung. Bitte transkribieren Sie alles genau, einschließlich aller Wörter, Satzzeichen und Pausen.',
         });
 
-        // Split each Whisper segment into shorter subtitle lines:
-        // 1) Split by sentence-ending punctuation (.!?)
-        // 2) If a piece is still too long (>80 chars), split at commas
-        // 3) If still too long, split at German conjunctions (und, oder, aber...)
+        // ── Build subtitles from word-level timestamps ──
+        // Each word has { word, start, end } with precise timing.
+        // We group words into subtitle lines ≤ MAX_SUBTITLE_LENGTH,
+        // preferring splits at sentence-ending punctuation, commas, and German conjunctions.
+        // The start/end of each subtitle comes from the ACTUAL word timestamps.
+
         const MAX_SUBTITLE_LENGTH = 80;
         const subtitles: { start: number; dur: number; text: string }[] = [];
 
-        // Merge fragments using greedy approach: combine adjacent pieces while under limit
-        function mergeFragments(parts: string[]): string[] {
-          if (parts.length <= 1) return parts;
-          const merged: string[] = [];
-          let buffer = parts[0];
-          for (let i = 1; i < parts.length; i++) {
-            const combined = buffer + ' ' + parts[i];
-            if (combined.length <= MAX_SUBTITLE_LENGTH) {
-              buffer = combined;
-            } else {
-              merged.push(buffer);
-              buffer = parts[i];
+        interface TimedWord { word: string; start: number; end: number }
+        const words: TimedWord[] = (
+          (response as unknown as { words?: TimedWord[] }).words || []
+        ).filter(w => w.word && w.word.trim());
+
+        if (words.length === 0) {
+          // Fallback: no word-level data — use segments if available
+          for (const seg of (response.segments || []) as { start: number; end: number; text: string }[]) {
+            const trimmed = seg.text.trim();
+            if (trimmed) subtitles.push({ start: seg.start, dur: seg.end - seg.start, text: trimmed });
+          }
+        } else {
+          // German conjunctions to split BEFORE (keeps conjunction with following clause)
+          const CONJUNCTIONS = new Set([
+            'und', 'oder', 'aber', 'denn', 'sondern', 'doch',
+            'weil', 'dass', 'als', 'wenn', 'ob', 'obwohl',
+          ]);
+
+          // Determine if a word is a natural break point (split AFTER this word)
+          function isBreakAfter(w: string): 'sentence' | 'comma' | null {
+            if (/[.!?]$/.test(w)) return 'sentence';
+            if (/,$/.test(w)) return 'comma';
+            return null;
+          }
+
+          // Determine if a word is a natural break point (split BEFORE this word)
+          function isBreakBefore(w: string): boolean {
+            return CONJUNCTIONS.has(w.toLowerCase().replace(/[^a-zäöüß]/g, ''));
+          }
+
+          // Flush a group of words into a subtitle
+          function flush(group: TimedWord[]) {
+            if (group.length === 0) return;
+            const text = group.map(w => w.word).join(' ').trim();
+            if (!text) return;
+            subtitles.push({
+              start: group[0].start,
+              dur: group[group.length - 1].end - group[0].start,
+              text,
+            });
+          }
+
+          let currentGroup: TimedWord[] = [];
+          let currentLen = 0;
+
+          for (let i = 0; i < words.length; i++) {
+            const w = words[i];
+            const wordText = w.word.trim();
+            const addedLen = currentLen === 0 ? wordText.length : wordText.length + 1; // +1 for space
+
+            // Would this word exceed the limit?
+            if (currentLen + addedLen > MAX_SUBTITLE_LENGTH && currentGroup.length > 0) {
+              flush(currentGroup);
+              currentGroup = [];
+              currentLen = 0;
+            }
+
+            currentGroup.push(w);
+            currentLen += addedLen;
+
+            // Check for natural break after this word
+            const breakType = isBreakAfter(wordText);
+            if (breakType === 'sentence') {
+              // Always break after sentence-ending punctuation
+              flush(currentGroup);
+              currentGroup = [];
+              currentLen = 0;
+            } else if (breakType === 'comma' && currentLen >= 30) {
+              // Break at comma if line is already reasonably long
+              flush(currentGroup);
+              currentGroup = [];
+              currentLen = 0;
+            } else if (i + 1 < words.length && isBreakBefore(words[i + 1].word.trim()) && currentLen >= 25) {
+              // Break before conjunction if line is already reasonably long
+              flush(currentGroup);
+              currentGroup = [];
+              currentLen = 0;
             }
           }
-          if (buffer) merged.push(buffer);
-          return merged;
-        }
 
-        // Split text at German conjunctions, keeping the conjunction with the following part
-        function splitAtConjunctions(text: string): string[] {
-          // Split BEFORE conjunctions: und, oder, aber, denn, sondern, doch, weil, dass, als, wenn, ob
-          const parts = text
-            .split(/\s+(?=(?:und|oder|aber|denn|sondern|doch|weil|dass|als|wenn|ob)\s)/i)
-            .map(s => s.trim())
-            .filter(s => s.length > 0);
-          return parts.length > 1 ? mergeFragments(parts) : [text];
-        }
-
-        function splitLongText(text: string): string[] {
-          // First split on sentence-ending punctuation, keeping the delimiter attached
-          const sentences = text
-            .split(/(?<=[.!?])\s+/)
-            .map(s => s.trim())
-            .filter(s => s.length > 0);
-
-          const result: string[] = [];
-          for (const sentence of sentences) {
-            if (sentence.length <= MAX_SUBTITLE_LENGTH) {
-              result.push(sentence);
-              continue;
-            }
-
-            // Level 2: Split at commas
-            const commaParts = sentence
-              .split(/(?<=,)\s*/)
-              .map(s => s.trim())
-              .filter(s => s.length > 0);
-
-            const afterComma = commaParts.length > 1 ? mergeFragments(commaParts) : [sentence];
-
-            // Level 3: Any piece still too long? Split at conjunctions
-            for (const piece of afterComma) {
-              if (piece.length <= MAX_SUBTITLE_LENGTH) {
-                result.push(piece);
-              } else {
-                result.push(...splitAtConjunctions(piece));
-              }
-            }
-          }
-          return result;
-        }
-
-        for (const seg of (response.segments || []) as { start: number; end: number; text: string }[]) {
-          const trimmed = seg.text.trim();
-          if (!trimmed) continue;
-
-          const pieces = splitLongText(trimmed);
-
-          if (pieces.length <= 1) {
-            subtitles.push({ start: seg.start, dur: seg.end - seg.start, text: trimmed });
-          } else {
-            // Distribute time proportionally by character length
-            const totalChars = pieces.reduce((sum, s) => sum + s.length, 0);
-            const segDur = seg.end - seg.start;
-            let cursor = seg.start;
-
-            for (const piece of pieces) {
-              const ratio = piece.length / totalChars;
-              const dur = segDur * ratio;
-              subtitles.push({ start: cursor, dur, text: piece });
-              cursor += dur;
-            }
-          }
+          // Flush remaining words
+          flush(currentGroup);
         }
 
         if (subtitles.length === 0) {

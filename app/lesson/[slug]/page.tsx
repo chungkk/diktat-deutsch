@@ -297,11 +297,20 @@ export default function LessonPage() {
       const next = new Set(prev);
       if (next.has(index)) next.delete(index);
       else next.add(index);
-      // Persist bookmarks to database
-      saveProgress(completedIndicesRef.current, score, totalAttempts, next);
+      // Persist bookmarks via dedicated endpoint (outside updater logic)
+      if (lesson) {
+        fetch('/api/progress/bookmarks', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lessonId: lesson._id,
+            bookmarkedIndices: Array.from(next),
+          }),
+        }).catch(err => console.error('Failed to save bookmarks:', err));
+      }
       return next;
     });
-  }, [saveProgress, score, totalAttempts]);
+  }, [lesson]);
 
   const toggleShadowingMode = useCallback(() => {
     setShadowingMode(prev => {

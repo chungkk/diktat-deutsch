@@ -138,6 +138,9 @@ export default function LessonPage() {
           completedIndicesRef.current = progressData.completedIndices;
           setCompletedIndices(progressData.completedIndices);
         }
+        if (Array.isArray(progressData?.bookmarkedIndices)) {
+          setBookmarkedIndices(new Set(progressData.bookmarkedIndices));
+        }
         if (progressData?.score) setScore(progressData.score);
         if (progressData?.totalAttempts) setTotalAttempts(progressData.totalAttempts);
         setLoading(false);
@@ -204,21 +207,25 @@ export default function LessonPage() {
   }, [lesson, ytCommand]);
 
   // Save progress — always uses latest completedIndices via ref to avoid race conditions
-  const saveProgress = useCallback(async (completed: number[], sc: number, attempts: number) => {
+  const saveProgress = useCallback(async (completed: number[], sc: number, attempts: number, bookmarks?: Set<number>) => {
     if (!lesson) return;
+    const body: Record<string, unknown> = {
+      lessonId: lesson._id,
+      currentIndex: completedIndicesRef.current.length > 0
+        ? Math.max(...completedIndicesRef.current)
+        : 0,
+      completedIndices: completed,
+      score: sc,
+      totalAttempts: attempts,
+      isCompleted: completed.length >= lesson.subtitles.length,
+    };
+    if (bookmarks) {
+      body.bookmarkedIndices = Array.from(bookmarks);
+    }
     await fetch('/api/progress', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        lessonId: lesson._id,
-        currentIndex: completedIndicesRef.current.length > 0
-          ? Math.max(...completedIndicesRef.current)
-          : 0,
-        completedIndices: completed,
-        score: sc,
-        totalAttempts: attempts,
-        isCompleted: completed.length >= lesson.subtitles.length,
-      }),
+      body: JSON.stringify(body),
     });
   }, [lesson]);
 
@@ -290,9 +297,11 @@ export default function LessonPage() {
       const next = new Set(prev);
       if (next.has(index)) next.delete(index);
       else next.add(index);
+      // Persist bookmarks to database
+      saveProgress(completedIndicesRef.current, score, totalAttempts, next);
       return next;
     });
-  }, []);
+  }, [saveProgress, score, totalAttempts]);
 
   const toggleShadowingMode = useCallback(() => {
     setShadowingMode(prev => {

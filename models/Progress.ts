@@ -5,6 +5,7 @@ export interface IProgress extends Document {
   lessonId: mongoose.Types.ObjectId;
   currentIndex: number;
   completedIndices: number[];
+  bookmarkedIndices: number[];
   score: number;
   totalAttempts: number;
   lastAccessedAt: Date;
@@ -27,6 +28,9 @@ const ProgressSchema: Schema = new Schema({
     default: 0,
   },
   completedIndices: [{
+    type: Number,
+  }],
+  bookmarkedIndices: [{
     type: Number,
   }],
   score: {

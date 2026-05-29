@@ -213,16 +213,8 @@ export default function HomePage() {
     return subtitleCount > 0 ? Math.round((completed / subtitleCount) * 100) : 0;
   };
 
-  // Progressive unlock: lesson[i] is unlocked if i===0 or lesson[i-1] >= 90%
-  const unlockedCount = (() => {
-    let count = Math.min(2, lessons.length); // show 2 next lessons
-    for (let i = 0; i < lessons.length - 1; i++) {
-      const pct = getLessonPct(lessons[i]._id, lessons[i].subtitles?.length || 0);
-      if (pct >= 90) count++;
-      else break;
-    }
-    return count;
-  })();
+  // All lessons are unlocked
+  const unlockedCount = lessons.length;
 
   const completedCount = lessons.filter(l => {
     const prog = getProgress(l._id);
@@ -262,7 +254,7 @@ export default function HomePage() {
                 <span>📖</span> Alle Lektionen
               </h2>
               <span className="home-section-count">
-                🔓 {unlockedCount}/{totalLessons} freigeschaltet
+                📚 {totalLessons} Lektionen
               </span>
             </div>
             <div className="home-grid">
@@ -270,8 +262,7 @@ export default function HomePage() {
                 .map((lesson, idx) => ({
                   lesson,
                   idx,
-                  // Compute isLocked based on original index BEFORE sorting
-                  isLocked: idx >= unlockedCount,
+                  isLocked: false,
                 }))
                 .sort((a, b) => {
                   const aPct = getLessonPct(a.lesson._id, a.lesson.subtitles?.length || 0);

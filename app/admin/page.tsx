@@ -63,6 +63,43 @@ export default function AdminPage() {
   // Track which video is currently being fetched (its ID) for loading state on buttons
   const [fetchingVideoId, setFetchingVideoId] = useState<string | null>(null);
 
+  // Saved channels (persisted in localStorage)
+  interface SavedChannel { name: string; url: string; }
+  const [savedChannels, setSavedChannels] = useState<SavedChannel[]>([]);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('diktat-saved-channels');
+      if (stored) setSavedChannels(JSON.parse(stored));
+    } catch { /* ignore */ }
+  }, []);
+
+  const saveChannel = () => {
+    const url = channelUrl.trim();
+    if (!url) return;
+    if (savedChannels.some(c => c.url === url)) return; // already saved
+    // Extract a short name from the URL
+    let name = url;
+    const atMatch = url.match(/@([^/\s?]+)/);
+    if (atMatch) name = `@${atMatch[1]}`;
+    else {
+      const channelMatch = url.match(/\/channel\/([^/\s?]+)/);
+      if (channelMatch) name = channelMatch[1].substring(0, 12);
+      else {
+        try { name = new URL(url).pathname.replace(/\//g, ' ').trim() || url; } catch { /* keep url */ }
+      }
+    }
+    const updated = [...savedChannels, { name, url }];
+    setSavedChannels(updated);
+    localStorage.setItem('diktat-saved-channels', JSON.stringify(updated));
+  };
+
+  const removeChannel = (url: string) => {
+    const updated = savedChannels.filter(c => c.url !== url);
+    setSavedChannels(updated);
+    localStorage.setItem('diktat-saved-channels', JSON.stringify(updated));
+  };
+
   useEffect(() => {
     if (status === 'unauthenticated') { router.push('/login'); return; }
     if (status === 'authenticated') {
@@ -353,6 +390,39 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {/* Saved channels chips */}
+        {savedChannels.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: '0.75rem' }}>
+            {savedChannels.map(ch => (
+              <button
+                key={ch.url}
+                onClick={() => setChannelUrl(ch.url)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  padding: '0.25rem 0.6rem', borderRadius: '999px',
+                  fontSize: '0.76rem', fontWeight: 800, cursor: 'pointer',
+                  border: channelUrl === ch.url ? '2px solid var(--color-accent)' : '2px solid var(--color-border)',
+                  background: channelUrl === ch.url ? 'rgba(34,197,94,0.12)' : 'var(--color-bg-input)',
+                  color: channelUrl === ch.url ? 'var(--color-accent)' : 'var(--color-text-primary)',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <span>📺 {ch.name}</span>
+                <span
+                  onClick={e => { e.stopPropagation(); removeChannel(ch.url); }}
+                  style={{
+                    marginLeft: 2, cursor: 'pointer', opacity: 0.5,
+                    fontSize: '0.7rem', lineHeight: 1,
+                  }}
+                  title="Entfernen"
+                >
+                  ✕
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: 8, marginBottom: '1rem' }}>
           <input
             className="form-input"
@@ -362,6 +432,15 @@ export default function AdminPage() {
             style={{ flex: 1 }}
             onKeyDown={e => { if (e.key === 'Enter') fetchChannelVideos(); }}
           />
+          <button
+            className="btn btn-secondary"
+            onClick={saveChannel}
+            disabled={!channelUrl.trim() || savedChannels.some(c => c.url === channelUrl.trim())}
+            title="Kanal speichern"
+            style={{ padding: '0.4rem 0.6rem', fontSize: '1rem', minWidth: 0 }}
+          >
+            ⭐
+          </button>
           <select
             className="form-select"
             value={maxResults}

@@ -423,6 +423,9 @@ export default function LessonPage() {
     if (!lesson || !isPlaying) return;
     const subs = lesson.subtitles;
     const interval = setInterval(() => {
+      // If an autoPauseTimer is already running (from seekToSub), don't interfere
+      if (autoPauseTimer.current || autoPauseFallback.current) return;
+
       const t = lesson.videoType === 'youtube'
         ? ytTimeRef.current
         : videoRef.current?.currentTime ?? 0;
@@ -440,7 +443,7 @@ export default function LessonPage() {
                 } else if (videoRef.current) {
                   videoRef.current.pause();
                 }
-                // Don't update currentIndex here — let the user manually advance
+                // Don't update currentIndex — stay on current subtitle
                 return;
               }
             }

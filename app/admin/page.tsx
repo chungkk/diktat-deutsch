@@ -52,6 +52,7 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false);
   const [fixFile, setFixFile] = useState<File | null>(null);
   const [fixLoading, setFixLoading] = useState(false);
+  const [selectedSubs, setSelectedSubs] = useState<Set<number>>(new Set());
 
   // Channel import state
   const [channelUrl, setChannelUrl] = useState('');
@@ -159,12 +160,37 @@ export default function AdminPage() {
     setSubLoading(false);
   };
 
+  const mergeSelectedSubs = () => {
+    if (selectedSubs.size < 2) return;
+    const indices = Array.from(selectedSubs).sort((a, b) => a - b);
+    const firstIdx = indices[0];
+    const lastIdx = indices[indices.length - 1];
+    const first = subtitles[firstIdx];
+    const last = subtitles[lastIdx];
+    const mergedText = indices.map(i => subtitles[i].text).join(' ');
+    const mergedDur = parseFloat(((last.start + last.dur) - first.start).toFixed(2));
+    const merged: Subtitle = { start: first.start, dur: mergedDur, text: mergedText };
+    const updated = subtitles.filter((_, i) => !indices.includes(i));
+    updated.splice(firstIdx, 0, merged);
+    setSubtitles(updated);
+    setSelectedSubs(new Set());
+  };
+
+  const toggleSubSelect = (index: number) => {
+    setSelectedSubs(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  };
+
   const resetForm = () => {
     setTitle(''); setDescription(''); setLevel('A1'); setVideoType('youtube');
     setYoutubeUrl(''); setIsPublished(false); setSubtitles([]);
     setSubError(''); setUploadFile(null); setVideoUrl(''); setEditId(null);
     setThumbnail(''); setDuration(0); setUseWhisper(false);
-    setFixFile(null); setFixLoading(false);
+    setFixFile(null); setFixLoading(false); setSelectedSubs(new Set());
   };
 
   const openNew = () => { resetForm(); setShowModal(true); };
@@ -532,6 +558,13 @@ export default function AdminPage() {
                   <td>
                     <div className="action-btns">
                       <button className="btn btn-secondary btn-sm" onClick={() => openEdit(lesson)}>Bearbeiten</button>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => router.push(`/admin/subs/${lesson._id}`)}
+                        style={{ fontSize: '0.72rem' }}
+                      >
+                        ✏️ Subs
+                      </button>
                       <button className="btn btn-secondary btn-sm" onClick={() => togglePublish(lesson)}>
                         {lesson.isPublished ? 'Verbergen' : 'Veröffentlichen'}
                       </button>
@@ -642,8 +675,44 @@ export default function AdminPage() {
 
             {subtitles.length > 0 && (
               <div className="form-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <label style={{ margin: 0 }}>{subtitles.length} Untertitel geladen</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                  <label style={{ margin: 0 }}>✏️ {subtitles.length} Untertitel — Manuell bearbeiten</label>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    {selectedSubs.size >= 2 && (
+                      <button
+                        className="btn btn-primary btn-sm"
+                        style={{
+                          fontSize: '0.72rem', padding: '0.25rem 0.75rem',
+                          background: 'linear-gradient(135deg, #f59e0b, #ef4444)',
+                          border: 'none', fontWeight: 900,
+                          animation: 'pulse 1.5s ease-in-out infinite',
+                        }}
+                        onClick={mergeSelectedSubs}
+                      >
+                        🔗 Gộp {selectedSubs.size} dòng
+                      </button>
+                    )}
+                    {selectedSubs.size > 0 && (
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ fontSize: '0.68rem', padding: '0.2rem 0.5rem', opacity: 0.7 }}
+                        onClick={() => setSelectedSubs(new Set())}
+                      >
+                        ✕ Bỏ chọn
+                      </button>
+                    )}
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '0.72rem', padding: '0.2rem 0.6rem' }}
+                      onClick={() => {
+                        const lastSub = subtitles[subtitles.length - 1];
+                        const newStart = lastSub ? lastSub.start + lastSub.dur : 0;
+                        setSubtitles([...subtitles, { start: parseFloat(newStart.toFixed(2)), dur: 3, text: '' }]);
+                      }}
+                    >
+                      + Zeile hinzufügen
+                    </button>
+                  </div>
                 </div>
 
                 {/* Fix subtitles with original text file */}
@@ -670,11 +739,177 @@ export default function AdminPage() {
                   )}
                 </div>
 
-                <div style={{ maxHeight: 200, overflowY: 'auto', background: 'var(--bg-primary)', borderRadius: 8, padding: 12, fontSize: '0.85rem' }}>
+                <div style={{ maxHeight: 400, overflowY: 'auto', background: 'var(--bg-primary)', borderRadius: 8, padding: '8px', fontSize: '0.82rem' }}>
+                  {/* Header row */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '28px 36px 80px 60px 1fr 32px',
+                    gap: 6,
+                    padding: '4px 4px 6px',
+                    borderBottom: '2px solid var(--border)',
+                    fontWeight: 900,
+                    fontSize: '0.7rem',
+                    color: 'var(--color-accent, var(--accent))',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    position: 'sticky',
+                    top: 0,
+                    background: 'var(--bg-primary)',
+                    zIndex: 1,
+                  }}>
+                    <span title="Auswählen zum Zusammenführen">☐</span>
+                    <span>#</span>
+                    <span>Start</span>
+                    <span>Dauer</span>
+                    <span>Text</span>
+                    <span></span>
+                  </div>
+
                   {subtitles.map((s, i) => (
-                    <div key={i} style={{ padding: '4px 0', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
-                      <span style={{ color: 'var(--accent)', marginRight: 8 }}>{Math.floor(s.start / 60)}:{String(Math.floor(s.start % 60)).padStart(2, '0')}</span>
-                      {s.text}
+                    <div
+                      key={i}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '28px 36px 80px 60px 1fr 32px',
+                        gap: 6,
+                        padding: '5px 4px',
+                        borderBottom: '1px solid var(--border)',
+                        alignItems: 'center',
+                        background: selectedSubs.has(i) ? 'rgba(245,158,11,0.12)' : 'transparent',
+                        borderLeft: selectedSubs.has(i) ? '3px solid #f59e0b' : '3px solid transparent',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {/* Checkbox for merge selection */}
+                      <div style={{ textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedSubs.has(i)}
+                          onChange={() => toggleSubSelect(i)}
+                          style={{
+                            width: 16, height: 16, cursor: 'pointer',
+                            accentColor: '#f59e0b',
+                          }}
+                          title={`Zeile ${i + 1} zum Gộp auswählen`}
+                        />
+                      </div>
+
+                      {/* Row number */}
+                      <span style={{ fontSize: '0.7rem', fontWeight: 800, color: selectedSubs.has(i) ? '#f59e0b' : 'var(--color-text-muted, var(--text-secondary))', textAlign: 'center' }}>
+                        {i + 1}
+                      </span>
+
+                      {/* Start time input (MM:SS.ms) */}
+                      <input
+                        type="text"
+                        value={(() => {
+                          const m = Math.floor(s.start / 60);
+                          const sec = (s.start % 60).toFixed(1);
+                          return `${m}:${sec.padStart(4, '0')}`;
+                        })()}
+                        onChange={e => {
+                          const val = e.target.value;
+                          const parts = val.split(':');
+                          let seconds = 0;
+                          if (parts.length === 2) {
+                            seconds = parseInt(parts[0] || '0') * 60 + parseFloat(parts[1] || '0');
+                          } else {
+                            seconds = parseFloat(val || '0');
+                          }
+                          if (!isNaN(seconds)) {
+                            const updated = [...subtitles];
+                            updated[i] = { ...updated[i], start: parseFloat(seconds.toFixed(2)) };
+                            setSubtitles(updated);
+                          }
+                        }}
+                        style={{
+                          background: 'var(--color-bg-input, var(--bg-secondary))',
+                          border: '1.5px solid var(--color-border, var(--border))',
+                          borderRadius: 6,
+                          padding: '3px 6px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          color: 'var(--color-accent, var(--accent))',
+                          fontFamily: 'monospace',
+                          width: '100%',
+                          textAlign: 'center',
+                        }}
+                        title="Format: M:SS.s (z.B. 1:23.5)"
+                      />
+
+                      {/* Duration input */}
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0.1"
+                        value={parseFloat(s.dur.toFixed(1))}
+                        onChange={e => {
+                          const val = parseFloat(e.target.value);
+                          if (!isNaN(val) && val > 0) {
+                            const updated = [...subtitles];
+                            updated[i] = { ...updated[i], dur: parseFloat(val.toFixed(2)) };
+                            setSubtitles(updated);
+                          }
+                        }}
+                        style={{
+                          background: 'var(--color-bg-input, var(--bg-secondary))',
+                          border: '1.5px solid var(--color-border, var(--border))',
+                          borderRadius: 6,
+                          padding: '3px 6px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          color: 'var(--color-text-primary, var(--text-primary))',
+                          fontFamily: 'monospace',
+                          width: '100%',
+                          textAlign: 'center',
+                        }}
+                        title="Dauer in Sekunden"
+                      />
+
+                      {/* Text input */}
+                      <input
+                        type="text"
+                        value={s.text}
+                        onChange={e => {
+                          const updated = [...subtitles];
+                          updated[i] = { ...updated[i], text: e.target.value };
+                          setSubtitles(updated);
+                        }}
+                        style={{
+                          background: 'var(--color-bg-input, var(--bg-secondary))',
+                          border: '1.5px solid var(--color-border, var(--border))',
+                          borderRadius: 6,
+                          padding: '3px 8px',
+                          fontSize: '0.82rem',
+                          fontWeight: 500,
+                          color: 'var(--color-text-primary, var(--text-primary))',
+                          width: '100%',
+                        }}
+                        placeholder="Untertiteltext..."
+                      />
+
+                      {/* Delete button */}
+                      <button
+                        onClick={() => {
+                          const updated = subtitles.filter((_, idx) => idx !== i);
+                          setSubtitles(updated);
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '0.9rem',
+                          padding: '2px',
+                          opacity: 0.5,
+                          transition: 'opacity 0.15s',
+                          lineHeight: 1,
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                        onMouseLeave={e => (e.currentTarget.style.opacity = '0.5')}
+                        title="Zeile löschen"
+                      >
+                        🗑
+                      </button>
                     </div>
                   ))}
                 </div>

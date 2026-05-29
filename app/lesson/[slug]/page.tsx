@@ -418,7 +418,7 @@ export default function LessonPage() {
     }
   }, [currentIndex]);
 
-  // Sync currentIndex with video playback time
+  // Sync currentIndex with video playback time + auto-stop at subtitle end
   useEffect(() => {
     if (!lesson || !isPlaying) return;
     const subs = lesson.subtitles;
@@ -430,6 +430,20 @@ export default function LessonPage() {
       for (let i = subs.length - 1; i >= 0; i--) {
         if (t >= subs[i].start - 0.15) {
           if (i !== currentIndex) {
+            // Auto-stop: pause when leaving the current subtitle's time range
+            if (autoStop && currentIndex >= 0 && currentIndex < subs.length) {
+              const prevSub = subs[currentIndex];
+              const prevEnd = prevSub.start + prevSub.dur + 0.15;
+              if (t >= prevEnd) {
+                if (lesson.videoType === 'youtube') {
+                  ytCommand('pauseVideo');
+                } else if (videoRef.current) {
+                  videoRef.current.pause();
+                }
+                // Don't update currentIndex here — let the user manually advance
+                return;
+              }
+            }
             setCurrentIndex(i);
             // Auto-scroll to it
             const el = document.getElementById(`sub-${i}`);
@@ -444,7 +458,7 @@ export default function LessonPage() {
       }
     }, 150);
     return () => clearInterval(interval);
-  }, [lesson, isPlaying, currentIndex]);
+  }, [lesson, isPlaying, currentIndex, autoStop, ytCommand]);
 
   // Normalize for comparison
   const norm = (s: string) => s.toLowerCase().replace(/[.,!?;:'"„"»«]/g, '').trim();

@@ -7,12 +7,12 @@ interface LessonProgressProps {
   blankMode: 50 | 100;
   videoBlurLevel: 0 | 1 | 2;
   shadowingMode: boolean;
-  freeTypingMode: boolean;
   bookmarkCount: number;
+  autoStop: boolean;
   onModeChange: (mode: 50 | 100) => void;
   onCycleBlur: () => void;
   onToggleShadowing: () => void;
-  onToggleFreeTyping: () => void;
+  onToggleAutoStop: () => void;
 }
 
 export default function LessonProgress({
@@ -22,12 +22,12 @@ export default function LessonProgress({
   blankMode,
   videoBlurLevel,
   shadowingMode,
-  freeTypingMode,
   bookmarkCount,
+  autoStop,
   onModeChange,
   onCycleBlur,
   onToggleShadowing,
-  onToggleFreeTyping,
+  onToggleAutoStop,
 }: LessonProgressProps) {
   return (
     <>
@@ -47,27 +47,21 @@ export default function LessonProgress({
         <span className="mode-label">Modus</span>
         <div className="mode-buttons">
           <button
-            className={`mode-btn ${!freeTypingMode && !shadowingMode && blankMode === 50 ? 'mode-btn-active' : ''}`}
-            onClick={() => { onModeChange(50); if (freeTypingMode) onToggleFreeTyping(); if (shadowingMode) onToggleShadowing(); }}
+            className={`mode-btn ${!shadowingMode && blankMode === 50 ? 'mode-btn-active' : ''}`}
+            onClick={() => { onModeChange(50); if (shadowingMode) onToggleShadowing(); }}
           >
             50%
           </button>
           <button
-            className={`mode-btn ${!freeTypingMode && !shadowingMode && blankMode === 100 ? 'mode-btn-active' : ''}`}
-            onClick={() => { onModeChange(100); if (freeTypingMode) onToggleFreeTyping(); if (shadowingMode) onToggleShadowing(); }}
+            className={`mode-btn ${!shadowingMode && blankMode === 100 ? 'mode-btn-active' : ''}`}
+            onClick={() => { onModeChange(100); if (shadowingMode) onToggleShadowing(); }}
           >
             100%
-          </button>
-          <button
-            className={`mode-btn ${freeTypingMode ? 'mode-btn-active mode-btn-freetype' : ''}`}
-            onClick={onToggleFreeTyping}
-          >
-            ✏️ Frei
           </button>
         </div>
       </div>
 
-      {/* Controls group — Shadowing + Video blur, side by side */}
+      {/* Controls group — Shadowing + Video blur */}
       <div className="lesson-ctrl-group">
         {/* Shadowing toggle */}
         <button
@@ -100,6 +94,23 @@ export default function LessonProgress({
           </span>
           <span className="ctrl-btn-badge">
             {(['AUS', 'LEICHT', 'STARK'] as const)[videoBlurLevel]}
+          </span>
+        </button>
+
+        {/* Auto-Stop toggle */}
+        <button
+          className={`ctrl-btn ctrl-btn-autostop ${autoStop ? 'ctrl-btn-autostop-active' : ''}`}
+          onClick={onToggleAutoStop}
+          title={autoStop ? 'Auto-Stop AN: Video pausiert nach jeder Zeile' : 'Auto-Stop AUS: Video läuft weiter'}
+        >
+          <span className="ctrl-btn-icon">
+            {autoStop ? '⏸' : '▶️'}
+          </span>
+          <span className="ctrl-btn-text">
+            Auto-Stop
+          </span>
+          <span className="ctrl-btn-badge">
+            {autoStop ? 'AN' : 'AUS'}
           </span>
         </button>
       </div>

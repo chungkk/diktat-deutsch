@@ -422,21 +422,22 @@ a:hover { color: var(--color-accent-hover); }
 .lesson-ctrl-group {
   margin-bottom: 1rem;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 0.5rem;
 }
 .ctrl-btn {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 0.3rem;
-  padding: 0.7rem 0.5rem;
+  padding: 0.7rem 0.3rem;
   background: var(--color-bg-card);
   border: 2px solid var(--color-border);
   border-radius: 1rem;
   color: var(--color-text-secondary);
-  font-size: 0.75rem; font-weight: 800; font-family: var(--font-family-sans);
+  font-size: 0.72rem; font-weight: 800; font-family: var(--font-family-sans);
   cursor: pointer; transition: all 0.18s;
   box-shadow: 3px 3px 0 rgba(0,0,0,0.3);
   text-align: center;
+  min-width: 0; overflow: hidden;
 }
 .ctrl-btn-icon { font-size: 1.2rem; transition: transform 0.2s; line-height: 1; }
 .ctrl-btn:hover .ctrl-btn-icon { transform: scale(1.2) rotate(8deg); }
@@ -455,6 +456,10 @@ a:hover { color: var(--color-accent-hover); }
 .ctrl-btn-shadow:hover { border-color: rgba(251,191,36,0.5); color: #fbbf24; transform: translate(-1px,-1px); box-shadow: 4px 4px 0 #b45309; }
 .ctrl-btn-shadow-active { border-color: #fbbf24; color: #fbbf24; background: rgba(251,191,36,0.08); box-shadow: 3px 3px 0 #b45309; }
 .ctrl-btn-shadow-active .ctrl-btn-badge { background: rgba(251,191,36,0.18); color: #fbbf24; border-color: rgba(251,191,36,0.4); }
+/* Auto-stop variant — teal */
+.ctrl-btn-autostop:hover { border-color: rgba(20,184,166,0.5); color: #14b8a6; transform: translate(-1px,-1px); box-shadow: 4px 4px 0 rgba(13,148,136,0.4); }
+.ctrl-btn-autostop-active { border-color: #14b8a6; color: #14b8a6; background: rgba(20,184,166,0.08); box-shadow: 3px 3px 0 rgba(13,148,136,0.4); }
+.ctrl-btn-autostop-active .ctrl-btn-badge { background: rgba(20,184,166,0.18); color: #14b8a6; border-color: rgba(20,184,166,0.4); }
 
 /* LESSON PAGE */
 .lesson-page { display: flex; flex-direction: column; height: 100vh; }
@@ -1037,6 +1042,102 @@ a:hover { color: var(--color-accent-hover); }
 .mode-btn-freetype {
   background: var(--color-sky) !important; color: #0a1a0e !important;
   box-shadow: 2px 2px 0 rgba(14,116,144,0.6) !important;
+}
+
+/* ═══ INLINE SUB EDIT (Admin — same card layout) ═══ */
+.sub-edit-toolbar {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.5rem 0.75rem; margin-bottom: 0.5rem;
+  background: var(--color-bg-card);
+  border: 2px solid var(--color-accent);
+  border-radius: 1rem;
+  box-shadow: 3px 3px 0 #15803d;
+  position: sticky; top: 0; z-index: 5;
+}
+.sub-edit-row {
+  cursor: default !important;
+}
+.sub-edit-row .sub-row-header {
+  flex-wrap: wrap;
+}
+.sub-edit-selected {
+  border-color: #f59e0b !important;
+  background: rgba(245,158,11,0.06) !important;
+  box-shadow: 4px 4px 0 rgba(180,83,9,0.3) !important;
+}
+.sub-edit-time-group {
+  display: flex; gap: 4px; align-items: center; margin-left: auto;
+}
+.sub-edit-time-input {
+  width: 60px; padding: 3px 5px;
+  background: var(--color-bg-input);
+  border: 1.5px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.72rem; font-weight: 700;
+  font-family: monospace;
+  color: var(--color-accent);
+  text-align: center;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.sub-edit-time-input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px rgba(34,197,94,0.15);
+}
+.sub-edit-actions {
+  display: flex; gap: 2px; margin-left: 4px;
+}
+.sub-edit-action-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 0.82rem; padding: 2px; opacity: 0.4;
+  transition: all 0.15s; line-height: 1;
+}
+.sub-edit-action-btn:hover { opacity: 1; transform: scale(1.15); }
+.sub-edit-text-input {
+  width: 100%;
+  background: var(--color-bg-input);
+  border: 1.5px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem; font-weight: 600;
+  color: var(--color-text-primary);
+  font-family: var(--font-family-sans);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.sub-edit-text-input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px rgba(34,197,94,0.15);
+}
+
+/* Admin edit button in lesson header */
+.lesson-edit-btn {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.3rem 0.7rem; border-radius: 999px;
+  font-size: 0.72rem; font-weight: 900;
+  background: rgba(245,158,11,0.12);
+  color: #f59e0b;
+  border: 2px solid rgba(245,158,11,0.35);
+  cursor: pointer;
+  font-family: var(--font-family-sans);
+  transition: all 0.15s;
+  box-shadow: 2px 2px 0 rgba(180,83,9,0.3);
+}
+.lesson-edit-btn:hover {
+  background: rgba(245,158,11,0.2);
+  border-color: #f59e0b;
+  transform: translate(-1px,-1px);
+  box-shadow: 3px 3px 0 rgba(180,83,9,0.5);
+}
+.lesson-edit-btn-active {
+  background: #f59e0b;
+  color: #0a1a0e;
+  border-color: #b45309;
+  box-shadow: 2px 2px 0 #b45309;
+}
+.lesson-edit-btn-active:hover {
+  background: #fbbf24;
+  color: #0a1a0e;
 }
 
 /* ═══ RESPONSIVE ═══ */

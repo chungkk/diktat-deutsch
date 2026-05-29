@@ -5,7 +5,6 @@ import { useRouter, useParams } from 'next/navigation';
 import VideoPlayer from './_components/VideoPlayer';
 import LessonProgress from './_components/LessonProgress';
 import ClozeRow from './_components/ClozeRow';
-import FreeTypingPanel from './_components/FreeTypingRow';
 
 interface Subtitle {
   start: number;
@@ -21,6 +20,13 @@ interface LessonData {
   videoUrl?: string;
   subtitles: Subtitle[];
   level: string;
+}
+
+// Format seconds to m:ss
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
 }
 
 // Split subtitle text into tokens (words + punctuation kept attached)
@@ -73,8 +79,10 @@ function pickBlanks(words: string[], seed: number, mode: 50 | 100): Set<number> 
 
 export default function LessonPage() {
   const { slug } = useParams();
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
+  const isAdmin = (session?.user as { role?: string })?.role === 'admin';
+  const [editMode, setEditMode] = useState(false);
 
   const [lesson, setLesson] = useState<LessonData | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -90,7 +98,14 @@ export default function LessonPage() {
   const [videoBlurLevel, setVideoBlurLevel] = useState<0 | 1 | 2>(0);
   const [bookmarkedIndices, setBookmarkedIndices] = useState<Set<number>>(new Set());
   const [shadowingMode, setShadowingMode] = useState(false);
-  const [freeTypingMode, setFreeTypingMode] = useState(false);
+  const [autoStop, setAutoStop] = useState(true);
+
+  // ── Edit mode state ──
+  const [editSubtitles, setEditSubtitles] = useState<Subtitle[]>([]);
+  const [editSelectedSubs, setEditSelectedSubs] = useState<Set<number>>(new Set());
+  const [editSaving, setEditSaving] = useState(false);
+  const [editSaveMsg, setEditSaveMsg] = useState('');
+  const editTextRefs = useRef<Map<number, HTMLInputElement>>(new Map());
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const blankRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -229,44 +244,54 @@ export default function LessonPage() {
     });
   }, [lesson]);
 
-  // Seek to subtitle and auto-pause when it ends
-  const seekToSubtitle = useCallback((index: number) => {
+  // Seek and auto-pause for a specific subtitle object
+  const seekToSub = useCallback((sub: Subtitle, autoStop = true) => {
     if (!lesson) return;
-    const sub = lesson.subtitles[index];
-    if (!sub) return;
 
     if (autoPauseTimer.current) { clearInterval(autoPauseTimer.current); autoPauseTimer.current = null; }
     if (autoPauseFallback.current) { clearTimeout(autoPauseFallback.current); autoPauseFallback.current = null; }
 
-    const endTime = sub.start + sub.dur + 0.3;
-    const durationMs = (sub.dur + 0.5) * 1000;
-
     if (lesson.videoType === 'youtube') {
       ytCommand('seekTo', [sub.start, true]);
       ytCommand('playVideo');
-      autoPauseTimer.current = setInterval(() => {
-        if (ytTimeRef.current >= endTime) {
+      if (autoStop) {
+        const endTime = sub.start + sub.dur + 0.3;
+        const durationMs = (sub.dur + 0.5) * 1000;
+        autoPauseTimer.current = setInterval(() => {
+          if (ytTimeRef.current >= endTime) {
+            ytCommand('pauseVideo');
+            if (autoPauseTimer.current) { clearInterval(autoPauseTimer.current); autoPauseTimer.current = null; }
+            if (autoPauseFallback.current) { clearTimeout(autoPauseFallback.current); autoPauseFallback.current = null; }
+          }
+        }, 80);
+        autoPauseFallback.current = setTimeout(() => {
           ytCommand('pauseVideo');
           if (autoPauseTimer.current) { clearInterval(autoPauseTimer.current); autoPauseTimer.current = null; }
-          if (autoPauseFallback.current) { clearTimeout(autoPauseFallback.current); autoPauseFallback.current = null; }
-        }
-      }, 80);
-      autoPauseFallback.current = setTimeout(() => {
-        ytCommand('pauseVideo');
-        if (autoPauseTimer.current) { clearInterval(autoPauseTimer.current); autoPauseTimer.current = null; }
-        autoPauseFallback.current = null;
-      }, durationMs);
+          autoPauseFallback.current = null;
+        }, durationMs);
+      }
     } else if (lesson.videoType === 'local' && videoRef.current) {
       videoRef.current.currentTime = sub.start;
       videoRef.current.play();
-      autoPauseTimer.current = setInterval(() => {
-        if (videoRef.current && videoRef.current.currentTime >= endTime) {
-          videoRef.current.pause();
-          if (autoPauseTimer.current) { clearInterval(autoPauseTimer.current); autoPauseTimer.current = null; }
-        }
-      }, 80);
+      if (autoStop) {
+        const endTime = sub.start + sub.dur + 0.3;
+        autoPauseTimer.current = setInterval(() => {
+          if (videoRef.current && videoRef.current.currentTime >= endTime) {
+            videoRef.current.pause();
+            if (autoPauseTimer.current) { clearInterval(autoPauseTimer.current); autoPauseTimer.current = null; }
+          }
+        }, 80);
+      }
     }
   }, [lesson, ytCommand]);
+
+  // Seek to subtitle by index (uses lesson.subtitles)
+  const seekToSubtitle = useCallback((index: number) => {
+    if (!lesson) return;
+    const sub = lesson.subtitles[index];
+    if (!sub) return;
+    seekToSub(sub, autoStop);
+  }, [lesson, seekToSub, autoStop]);
 
   const seekBy = useCallback((seconds: number) => {
     if (lesson?.videoType === 'youtube') {
@@ -316,8 +341,6 @@ export default function LessonPage() {
     setShadowingMode(prev => {
       const next = !prev;
       if (next) {
-        // Turn off free typing when entering shadowing
-        setFreeTypingMode(false);
         // Auto-select the first bookmarked sentence
         const firstBookmarked = Array.from(bookmarkedIndices).sort((a, b) => a - b)[0];
         if (firstBookmarked !== undefined) {
@@ -328,17 +351,6 @@ export default function LessonPage() {
       return next;
     });
   }, [bookmarkedIndices, seekToSubtitle]);
-
-  const toggleFreeTypingMode = useCallback(() => {
-    setFreeTypingMode(prev => {
-      const next = !prev;
-      if (next) {
-        // Turn off shadowing when entering free typing
-        setShadowingMode(false);
-      }
-      return next;
-    });
-  }, []);
 
   // Select a subtitle row
   const selectSubtitle = useCallback((index: number) => {
@@ -361,15 +373,9 @@ export default function LessonPage() {
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
 
       // In free typing mode: space is normal char in textarea, arrows with Ctrl seek
-      if (freeTypingMode) {
-        if (e.code === 'Space' && !isInput) { e.preventDefault(); seekToSubtitle(currentIndex); }
-        if (e.code === 'ArrowLeft' && !isInput) { e.preventDefault(); seekBy(-2); }
-        if (e.code === 'ArrowRight' && !isInput) { e.preventDefault(); seekBy(2); }
-      } else {
-        if (e.code === 'Space') { e.preventDefault(); seekToSubtitle(currentIndex); }
-        if (e.code === 'ArrowLeft' && !isInput) { e.preventDefault(); seekBy(-2); }
-        if (e.code === 'ArrowRight' && !isInput) { e.preventDefault(); seekBy(2); }
-      }
+      if (e.code === 'Space') { e.preventDefault(); seekToSubtitle(currentIndex); }
+      if (e.code === 'ArrowLeft' && !isInput) { e.preventDefault(); seekBy(-2); }
+      if (e.code === 'ArrowRight' && !isInput) { e.preventDefault(); seekBy(2); }
 
       if (e.code === 'ArrowUp' && !isInput) {
         e.preventDefault();
@@ -400,7 +406,7 @@ export default function LessonPage() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlay, seekBy, seekToSubtitle, currentIndex, lesson, selectSubtitle, cycleVideoBlur, shadowingMode, bookmarkedIndices, freeTypingMode]);
+  }, [togglePlay, seekBy, seekToSubtitle, currentIndex, lesson, selectSubtitle, cycleVideoBlur, shadowingMode, bookmarkedIndices]);
 
   // Scroll active subtitle into view
   useEffect(() => {
@@ -411,6 +417,34 @@ export default function LessonPage() {
       container.scrollTo({ top: scrollTo, behavior: 'smooth' });
     }
   }, [currentIndex]);
+
+  // Sync currentIndex with video playback time
+  useEffect(() => {
+    if (!lesson || !isPlaying) return;
+    const subs = lesson.subtitles;
+    const interval = setInterval(() => {
+      const t = lesson.videoType === 'youtube'
+        ? ytTimeRef.current
+        : videoRef.current?.currentTime ?? 0;
+      // Find the subtitle that contains the current time
+      for (let i = subs.length - 1; i >= 0; i--) {
+        if (t >= subs[i].start - 0.15) {
+          if (i !== currentIndex) {
+            setCurrentIndex(i);
+            // Auto-scroll to it
+            const el = document.getElementById(`sub-${i}`);
+            const container = subtitleListRef.current;
+            if (el && container) {
+              const scrollTo = el.offsetTop - (container.clientHeight / 2) + (el.offsetHeight / 2);
+              container.scrollTo({ top: scrollTo, behavior: 'smooth' });
+            }
+          }
+          break;
+        }
+      }
+    }, 150);
+    return () => clearInterval(interval);
+  }, [lesson, isPlaying, currentIndex]);
 
   // Normalize for comparison
   const norm = (s: string) => s.toLowerCase().replace(/[.,!?;:'"„"»«]/g, '').trim();
@@ -547,6 +581,143 @@ export default function LessonPage() {
     }
   };
 
+  // ── Edit mode functions ──
+  const enterEditMode = useCallback(() => {
+    if (!lesson) return;
+    setEditSubtitles(JSON.parse(JSON.stringify(lesson.subtitles)));
+    setEditSelectedSubs(new Set());
+    setEditSaveMsg('');
+    setEditMode(true);
+  }, [lesson]);
+
+  const exitEditMode = useCallback(() => {
+    setEditMode(false);
+    setEditSelectedSubs(new Set());
+    setEditSaveMsg('');
+  }, []);
+
+  const updateEditSub = useCallback((index: number, field: keyof Subtitle, value: string | number) => {
+    setEditSubtitles(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  }, []);
+
+  const deleteEditSub = useCallback((index: number) => {
+    setEditSubtitles(prev => prev.filter((_, i) => i !== index));
+    setEditSelectedSubs(prev => {
+      const next = new Set<number>();
+      prev.forEach(idx => {
+        if (idx < index) next.add(idx);
+        else if (idx > index) next.add(idx - 1);
+      });
+      return next;
+    });
+  }, []);
+
+  const insertEditSubAfter = useCallback((index: number) => {
+    setEditSubtitles(prev => {
+      const current = prev[index];
+      const nextSub = prev[index + 1];
+      const newStart = parseFloat((current.start + current.dur).toFixed(2));
+      const newDur = nextSub ? parseFloat(Math.max(0.5, nextSub.start - newStart).toFixed(2)) : 3;
+      const updated = [...prev];
+      updated.splice(index + 1, 0, { start: newStart, dur: Math.min(newDur, 5), text: '' });
+      return updated;
+    });
+  }, []);
+
+  const splitEditSub = useCallback((index: number) => {
+    setEditSubtitles(prev => {
+      const sub = prev[index];
+      const text = sub.text;
+      if (!text || text.length < 2) return prev;
+
+      const inputEl = editTextRefs.current.get(index);
+      let splitPos = inputEl?.selectionStart ?? -1;
+
+      if (splitPos <= 0 || splitPos >= text.length) {
+        splitPos = -1;
+        for (const brk of ['. ', '! ', '? ']) {
+          const idx = text.indexOf(brk);
+          if (idx > 0 && idx < text.length - brk.length) { splitPos = idx + brk.length - 1; break; }
+        }
+        if (splitPos === -1) {
+          const mid = Math.floor(text.length / 2);
+          let bestSpace = -1, bestDist = Infinity;
+          for (let j = 0; j < text.length; j++) {
+            if (text[j] === ' ' && Math.abs(j - mid) < bestDist) { bestDist = Math.abs(j - mid); bestSpace = j; }
+          }
+          if (bestSpace > 0) splitPos = bestSpace;
+          else return prev;
+        }
+      }
+
+      const text1 = text.substring(0, splitPos).trim();
+      const text2 = text.substring(splitPos).trim();
+      if (!text1 || !text2) return prev;
+
+      const ratio = text1.length / (text1.length + text2.length);
+      const dur1 = parseFloat((sub.dur * ratio).toFixed(2));
+      const dur2 = parseFloat((sub.dur - dur1).toFixed(2));
+      const start2 = parseFloat((sub.start + dur1).toFixed(2));
+
+      const updated = [...prev];
+      updated.splice(index, 1, { start: sub.start, dur: dur1, text: text1 }, { start: start2, dur: dur2, text: text2 });
+      return updated;
+    });
+    setEditSelectedSubs(new Set());
+  }, []);
+
+  const toggleEditSelect = useCallback((index: number) => {
+    setEditSelectedSubs(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index); else next.add(index);
+      return next;
+    });
+  }, []);
+
+  const mergeEditSubs = useCallback(() => {
+    if (editSelectedSubs.size < 2) return;
+    const indices = Array.from(editSelectedSubs).sort((a, b) => a - b);
+    const firstIdx = indices[0];
+    setEditSubtitles(prev => {
+      const first = prev[indices[0]];
+      const last = prev[indices[indices.length - 1]];
+      const mergedText = indices.map(i => prev[i].text).join(' ');
+      const endTime = last.start + last.dur;
+      const merged: Subtitle = { start: first.start, dur: parseFloat((endTime - first.start).toFixed(2)), text: mergedText };
+      const updated = prev.filter((_, i) => !indices.includes(i));
+      updated.splice(firstIdx, 0, merged);
+      return updated;
+    });
+    setEditSelectedSubs(new Set());
+  }, [editSelectedSubs]);
+
+  const handleEditSave = useCallback(async () => {
+    if (!lesson) return;
+    setEditSaving(true);
+    setEditSaveMsg('');
+    try {
+      const res = await fetch(`/api/lessons/${lesson._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subtitles: editSubtitles }),
+      });
+      if (res.ok) {
+        setEditSaveMsg('✅ Gespeichert!');
+        setLesson(prev => prev ? { ...prev, subtitles: JSON.parse(JSON.stringify(editSubtitles)) } : prev);
+        setTimeout(() => setEditSaveMsg(''), 3000);
+      } else {
+        setEditSaveMsg('❌ Fehler');
+      }
+    } catch {
+      setEditSaveMsg('❌ Fehler');
+    }
+    setEditSaving(false);
+  }, [lesson, editSubtitles]);
+
   if (status === 'loading' || loading) {
     return <div className="loading"><div className="spinner" /></div>;
   }
@@ -568,6 +739,15 @@ export default function LessonPage() {
         <button className="lesson-back-btn" onClick={() => router.push('/')}>← Zurück</button>
         <h1 className="lesson-header-title">{lesson.title}</h1>
         <div className="lesson-header-meta">
+          {isAdmin && (
+            <button
+              className={`lesson-edit-btn ${editMode ? 'lesson-edit-btn-active' : ''}`}
+              onClick={() => editMode ? exitEditMode() : enterEditMode()}
+              title={editMode ? 'Editor schließen' : 'Untertitel bearbeiten'}
+            >
+              ✏️ {editMode ? 'Schließen' : 'Edit'}
+            </button>
+          )}
           <span className="lesson-level">{lesson.level}</span>
           <span>{totalSubs} Sätze</span>
           <span>{isPlaying ? '▶ Spielt' : '⏸ Pausiert'}</span>
@@ -597,25 +777,89 @@ export default function LessonPage() {
               blankMode={blankMode}
               videoBlurLevel={videoBlurLevel}
               shadowingMode={shadowingMode}
-              freeTypingMode={freeTypingMode}
               bookmarkCount={bookmarkedIndices.size}
               onModeChange={setBlankMode}
               onCycleBlur={cycleVideoBlur}
               onToggleShadowing={toggleShadowingMode}
-              onToggleFreeTyping={toggleFreeTypingMode}
+              autoStop={autoStop}
+              onToggleAutoStop={() => setAutoStop(prev => !prev)}
             />
           </div>
         </div>
 
         {/* RIGHT: Subtitle list OR Free typing panel */}
-        <div className={`lesson-right ${shadowingMode ? 'lesson-right-shadowing' : ''} ${freeTypingMode ? 'lesson-right-freetype' : ''}`} ref={subtitleListRef}>
-          {freeTypingMode ? (
-            <FreeTypingPanel
-              subtitles={lesson.subtitles}
-              onSeekBy={seekBy}
-              onTogglePlay={togglePlay}
-              isPlaying={isPlaying}
-            />
+        <div className={`lesson-right ${shadowingMode ? 'lesson-right-shadowing' : ''}`} ref={subtitleListRef}>
+          {editMode ? (
+            <>
+              {/* Edit toolbar */}
+              <div className="sub-edit-toolbar">
+                {editSelectedSubs.size >= 2 && (
+                  <button className="btn btn-sm" style={{ background: 'linear-gradient(135deg, #f59e0b, #ef4444)', border: '2px solid #b45309', boxShadow: '2px 2px 0 #b45309', color: '#fff', fontWeight: 900, fontSize: '0.72rem' }} onClick={mergeEditSubs}>
+                    🔗 Gộp {editSelectedSubs.size} dòng
+                  </button>
+                )}
+                {editSelectedSubs.size > 0 && (
+                  <button className="btn btn-secondary btn-sm" style={{ fontSize: '0.68rem', opacity: 0.7 }} onClick={() => setEditSelectedSubs(new Set())}>✕ Bỏ chọn</button>
+                )}
+                <div style={{ flex: 1 }} />
+                <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', fontWeight: 700 }}>{editSubtitles.length} Zeilen</span>
+                <button className="btn btn-primary btn-sm" onClick={handleEditSave} disabled={editSaving} style={{ fontSize: '0.72rem' }}>
+                  {editSaving ? '⏳...' : '💾 Speichern'}
+                </button>
+                {editSaveMsg && <span style={{ fontSize: '0.72rem', fontWeight: 800, color: editSaveMsg.startsWith('✅') ? 'var(--color-success)' : 'var(--color-error)' }}>{editSaveMsg}</span>}
+              </div>
+              {/* Edit rows — same card style */}
+              {editSubtitles.map((sub, i) => (
+                <div
+                  key={i}
+                  className={`sub-row sub-edit-row ${editSelectedSubs.has(i) ? 'sub-edit-selected' : ''}`}
+                >
+                  <div className="sub-row-header">
+                    <input
+                      type="checkbox"
+                      checked={editSelectedSubs.has(i)}
+                      onChange={() => toggleEditSelect(i)}
+                      style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#f59e0b', flexShrink: 0 }}
+                    />
+                    <span className="sub-number">{i + 1}</span>
+                    <button className="sub-play-btn" onClick={(e) => { e.stopPropagation(); seekToSub(sub, autoStop); }} title="Abspielen">🔊</button>
+                    <span className="sub-time">{formatTime(sub.start)}</span>
+                    <div className="sub-edit-time-group">
+                      <input
+                        type="number" step="0.1" min="0"
+                        value={parseFloat(sub.start.toFixed(1))}
+                        onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0) { updateEditSub(i, 'start', parseFloat(v.toFixed(2))); seekToSub({ ...sub, start: parseFloat(v.toFixed(2)) }, autoStop); } }}
+                        className="sub-edit-time-input"
+                        title="Start (s)"
+                      />
+                      <input
+                        type="number" step="0.1" min="0.1"
+                        value={parseFloat(sub.dur.toFixed(1))}
+                        onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v > 0) { updateEditSub(i, 'dur', parseFloat(v.toFixed(2))); seekToSub({ ...sub, dur: parseFloat(v.toFixed(2)) }, autoStop); } }}
+                        className="sub-edit-time-input"
+                        title="Dauer (s)"
+                      />
+                    </div>
+                    <div className="sub-edit-actions">
+                      <button onClick={() => splitEditSub(i)} className="sub-edit-action-btn" title="Split (✂️)">✂️</button>
+                      <button onClick={() => insertEditSubAfter(i)} className="sub-edit-action-btn" title="Einfügen (➕)">➕</button>
+                      <button onClick={() => deleteEditSub(i)} className="sub-edit-action-btn" title="Löschen (🗑)">🗑</button>
+                    </div>
+                  </div>
+                  <div className="sub-cloze" style={{ paddingLeft: '2.8rem' }}>
+                    <input
+                      type="text"
+                      ref={el => { if (el) editTextRefs.current.set(i, el); else editTextRefs.current.delete(i); }}
+                      value={sub.text}
+                      onChange={e => updateEditSub(i, 'text', e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); splitEditSub(i); } }}
+                      className="sub-edit-text-input"
+                      placeholder="Untertiteltext..."
+                    />
+                  </div>
+                </div>
+              ))}
+            </>
           ) : (
             <>
               {shadowingMode && bookmarkedIndices.size === 0 && (

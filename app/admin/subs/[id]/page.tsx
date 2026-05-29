@@ -837,6 +837,12 @@ export default function SubtitleEditorPage() {
                     ref={el => { if (el) textInputRefs.current.set(i, el); else textInputRefs.current.delete(i); }}
                     value={s.text}
                     onChange={e => updateSub(i, 'text', e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        splitSub(i);
+                      }
+                    }}
                     style={{
                       background: 'var(--color-bg-input)',
                       border: '1.5px solid var(--color-border)',

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -111,9 +111,12 @@ export default function HomePage() {
   const [lessonsReady, setLessonsReady] = useState(false);
   const [progressReady, setProgressReady] = useState(false);
   const router = useRouter();
+  const fetchIdRef = useRef(0);
 
   const fetchData = useCallback(() => {
     if (status !== 'authenticated') return;
+
+    const thisId = ++fetchIdRef.current;
 
     const fetchLessons = async () => {
       try {
@@ -145,6 +148,9 @@ export default function HomePage() {
     };
 
     Promise.all([fetchLessons(), fetchProgress()]).then(([lessonsData, progressData]) => {
+      // Discard stale responses from earlier concurrent calls
+      if (thisId !== fetchIdRef.current) return;
+
       if (lessonsData) {
         setLessons(lessonsData);
         setLessonsReady(true);
@@ -187,8 +193,8 @@ export default function HomePage() {
     });
   };
 
-  // Only block on auth + lesson loading — progress loads in background
-  if (status === 'loading' || !lessonsReady) {
+  // Wait for auth + lessons + progress to all be ready before rendering
+  if (status === 'loading' || !lessonsReady || !progressReady) {
     return (
       <div className="loading">
         <div className="loading-cute">
@@ -270,7 +276,11 @@ export default function HomePage() {
                   // Lessons with progress come first, sorted by % descending
                   if (aPct > 0 && bPct === 0) return -1;
                   if (aPct === 0 && bPct > 0) return 1;
-                  if (aPct > 0 && bPct > 0) return bPct - aPct;
+                  if (aPct > 0 && bPct > 0) {
+                    // Stable sort: use original index as tiebreaker
+                    if (bPct !== aPct) return bPct - aPct;
+                    return a.idx - b.idx;
+                  }
                   return a.idx - b.idx;
                 })
                 .map(({ lesson, idx, isLocked }) => {

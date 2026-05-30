@@ -148,6 +148,8 @@ export default function LessonPage() {
       if (lessonData.error) { setLoading(false); return; }
       setLesson(lessonData);
       fetch(`/api/progress?lessonId=${lessonData._id}`).then(r => r.json()).then(progressData => {
+        console.log('[LOAD] progressData:', progressData);
+        console.log('[LOAD] completedIndices:', progressData?.completedIndices);
         if (progressData?.currentIndex) setCurrentIndex(progressData.currentIndex);
         if (Array.isArray(progressData?.completedIndices)) {
           completedIndicesRef.current = progressData.completedIndices;
@@ -237,11 +239,18 @@ export default function LessonPage() {
     if (bookmarks) {
       body.bookmarkedIndices = Array.from(bookmarks);
     }
-    await fetch('/api/progress', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    console.log('[SAVE] completedIndices:', completed, 'score:', sc, 'attempts:', attempts);
+    try {
+      const res = await fetch('/api/progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      console.log('[SAVE] Response:', res.status, 'saved completedIndices:', data?.completedIndices);
+    } catch (err) {
+      console.error('[SAVE] Error:', err);
+    }
   }, [lesson]);
 
   // Seek and auto-pause for a specific subtitle object

@@ -33,6 +33,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [selectedLessons, setSelectedLessons] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // Form state
   const [title, setTitle] = useState('');
@@ -270,6 +272,37 @@ export default function AdminPage() {
     if (!confirm('Lektion wirklich löschen?')) return;
     await fetch(`/api/lessons/${lessonId}`, { method: 'DELETE' });
     fetchLessons();
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedLessons.size === 0) return;
+    if (!confirm(`${selectedLessons.size} Lektion(en) wirklich löschen?`)) return;
+    setBulkDeleting(true);
+    await Promise.all(
+      Array.from(selectedLessons).map(id =>
+        fetch(`/api/lessons/${id}`, { method: 'DELETE' })
+      )
+    );
+    setSelectedLessons(new Set());
+    await fetchLessons();
+    setBulkDeleting(false);
+  };
+
+  const toggleLessonSelect = (id: string) => {
+    setSelectedLessons(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllLessons = () => {
+    if (selectedLessons.size === lessons.length) {
+      setSelectedLessons(new Set());
+    } else {
+      setSelectedLessons(new Set(lessons.map(l => l._id)));
+    }
   };
 
   const togglePublish = async (lesson: Lesson) => {
@@ -596,16 +629,86 @@ export default function AdminPage() {
           <p className="empty-state-text">Noch keine Lektionen erstellt</p>
         </div>
       ) : (
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="card" style={{ padding: 0, overflow: 'hidden', position: 'relative' }}>
+          {/* Bulk action bar */}
+          {selectedLessons.size > 0 && (
+            <div style={{
+              position: 'sticky', top: 0, zIndex: 10,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '0.6rem 1rem',
+              background: 'linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.08))',
+              borderBottom: '2px solid rgba(239,68,68,0.3)',
+              backdropFilter: 'blur(12px)',
+              animation: 'slideDown 0.2s ease-out',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  width: 28, height: 28, borderRadius: '50%',
+                  background: 'rgba(239,68,68,0.2)', border: '2px solid rgba(239,68,68,0.5)',
+                  fontSize: '0.8rem', fontWeight: 900, color: '#ef4444',
+                }}>
+                  {selectedLessons.size}
+                </span>
+                <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--color-text-primary)' }}>
+                  {selectedLessons.size === lessons.length ? 'Alle' : selectedLessons.size} ausgewählt
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
+                  onClick={() => setSelectedLessons(new Set())}
+                >
+                  ✕ Abwählen
+                </button>
+                <button
+                  className="btn btn-danger btn-sm"
+                  style={{
+                    fontSize: '0.75rem', padding: '0.3rem 0.8rem',
+                    fontWeight: 900,
+                    animation: 'pulse 1.5s ease-in-out infinite',
+                  }}
+                  onClick={handleBulkDelete}
+                  disabled={bulkDeleting}
+                >
+                  {bulkDeleting ? '⏳ Lösche...' : `🗑 ${selectedLessons.size} Löschen`}
+                </button>
+              </div>
+            </div>
+          )}
           <table className="admin-table">
             <thead>
               <tr>
+                <th style={{ width: 40, textAlign: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={lessons.length > 0 && selectedLessons.size === lessons.length}
+                    onChange={toggleAllLessons}
+                    style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#ef4444' }}
+                    title="Alle auswählen"
+                  />
+                </th>
                 <th style={{ width: 50 }}>#</th><th>Titel</th><th>Level</th><th>Typ</th><th>Sätze</th><th>Status</th><th>Sortieren</th><th>Aktionen</th>
               </tr>
             </thead>
             <tbody>
               {lessons.map((lesson, idx) => (
-                <tr key={lesson._id}>
+                <tr
+                  key={lesson._id}
+                  style={{
+                    background: selectedLessons.has(lesson._id) ? 'rgba(239,68,68,0.08)' : undefined,
+                    transition: 'background 0.15s ease',
+                  }}
+                >
+                  <td style={{ textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedLessons.has(lesson._id)}
+                      onChange={() => toggleLessonSelect(lesson._id)}
+                      style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#ef4444' }}
+                    />
+                  </td>
                   <td style={{ fontWeight: 900, color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>{idx + 1}</td>
                   <td style={{ fontWeight: 500 }}>{lesson.title}</td>
                   <td><span className="lesson-level">{lesson.level}</span></td>

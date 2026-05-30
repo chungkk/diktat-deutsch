@@ -138,6 +138,14 @@ a:hover { color: var(--color-accent-hover); }
   0% { background: rgba(74,222,128,0.2); }
   100% { background: transparent; }
 }
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
+}
 
 /* ═══ CARTOON CARD MIXIN (flat shadow) ═══ */
 /* Cards use a solid offset shadow = cartoon feel */

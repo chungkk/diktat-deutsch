@@ -267,9 +267,10 @@ export default function HomePage() {
                 .sort((a, b) => {
                   const aPct = getLessonPct(a.lesson._id, a.lesson.subtitles?.length || 0);
                   const bPct = getLessonPct(b.lesson._id, b.lesson.subtitles?.length || 0);
-                  const aDone = aPct >= 90;
-                  const bDone = bPct >= 90;
-                  if (aDone !== bDone) return aDone ? 1 : -1;
+                  // Lessons with progress come first, sorted by % descending
+                  if (aPct > 0 && bPct === 0) return -1;
+                  if (aPct === 0 && bPct > 0) return 1;
+                  if (aPct > 0 && bPct > 0) return bPct - aPct;
                   return a.idx - b.idx;
                 })
                 .map(({ lesson, idx, isLocked }) => {

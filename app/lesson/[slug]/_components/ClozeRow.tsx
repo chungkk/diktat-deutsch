@@ -75,16 +75,22 @@ export default function ClozeRow({
     }
 
     if (!isActive) {
+      // In 50% mode, non-blank words and correctly typed blanks should stay visible
       const hasAnyRevealed = words.some((_, wi) => revealedWords.has(`${index}-${wi}`));
-      if (hasAnyRevealed) {
+      const hasAnyCorrect = Object.values(subResults).some(r => r === 'correct');
+      const hasPartialProgress = blankMode === 50 || hasAnyRevealed || hasAnyCorrect;
+
+      if (hasPartialProgress) {
         return (
           <>
             {words.map((word, wi) => {
               const isWordRevealed = revealedWords.has(`${index}-${wi}`);
               const isWordCorrect = blanks.has(wi) && subResults[wi] === 'correct';
-              if (isWordRevealed || isWordCorrect) {
+              const isNonBlankIn50 = blankMode === 50 && !blanks.has(wi);
+
+              if (isWordRevealed || isWordCorrect || isNonBlankIn50) {
                 return (
-                  <span key={wi} className="cloze-word cloze-revealed">
+                  <span key={wi} className={`cloze-word ${isWordCorrect ? 'cloze-correct' : 'cloze-revealed'}`}>
                     {word}{' '}
                   </span>
                 );

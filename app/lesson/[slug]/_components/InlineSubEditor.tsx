@@ -158,19 +158,19 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
     return () => { if (stopTimerRef.current) clearTimeout(stopTimerRef.current); };
   }, []);
 
-  // Save
-  const handleSave = async () => {
+  // Save helper that accepts an explicit subtitles array (avoids stale closure)
+  const performSave = useCallback(async (subsToSave: Subtitle[]) => {
     setSaving(true);
     setSaveMsg('');
     try {
       const res = await fetch(`/api/lessons/${lessonId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subtitles }),
+        body: JSON.stringify({ subtitles: subsToSave }),
       });
       if (res.ok) {
         setSaveMsg('✅ Gespeichert!');
-        onSaved(subtitles);
+        onSaved(subsToSave);
         setTimeout(() => setSaveMsg(''), 3000);
       } else {
         setSaveMsg('❌ Fehler beim Speichern');
@@ -179,6 +179,11 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
       setSaveMsg('❌ Fehler beim Speichern');
     }
     setSaving(false);
+  }, [lessonId, onSaved]);
+
+  // Manual save (button)
+  const handleSave = async () => {
+    await performSave(subtitles);
   };
 
   // Subtitle operations
@@ -273,6 +278,8 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
     );
     setSubtitles(updated);
     setSelectedSubs(new Set());
+    // Auto-save after split
+    performSave(updated);
   };
 
   const toggleSubSelect = (index: number) => {
@@ -302,6 +309,8 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
     updated.splice(firstIdx, 0, merged);
     setSubtitles(updated);
     setSelectedSubs(new Set());
+    // Auto-save after merge
+    performSave(updated);
 
     setTimeout(() => { playSubtitle(merged, firstIdx); }, 200);
   };

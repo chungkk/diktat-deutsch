@@ -31,6 +31,8 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
   const [saveMsg, setSaveMsg] = useState('');
   const [selectedSubs, setSelectedSubs] = useState<Set<number>>(new Set());
   const [playingIdx, setPlayingIdx] = useState<number | null>(null);
+  // Track subtitles that have been merged or had their timing adjusted
+  const [editedSubs, setEditedSubs] = useState<Set<number>>(new Set());
 
   // YouTube Player
   const playerRef = useRef<any>(null);
@@ -203,6 +205,14 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
       });
       return next;
     });
+    setEditedSubs(prev => {
+      const next = new Set<number>();
+      prev.forEach(idx => {
+        if (idx < index) next.add(idx);
+        else if (idx > index) next.add(idx - 1);
+      });
+      return next;
+    });
   };
 
   const addSub = () => {
@@ -220,6 +230,14 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
     updated.splice(index + 1, 0, { start: newStart, dur: Math.min(newDur, 5), text: '' });
     setSubtitles(updated);
     setSelectedSubs(prev => {
+      const next = new Set<number>();
+      prev.forEach(idx => {
+        if (idx <= index) next.add(idx);
+        else next.add(idx + 1);
+      });
+      return next;
+    });
+    setEditedSubs(prev => {
       const next = new Set<number>();
       prev.forEach(idx => {
         if (idx <= index) next.add(idx);
@@ -278,6 +296,16 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
     );
     setSubtitles(updated);
     setSelectedSubs(new Set());
+    // Remap editedSubs after split
+    setEditedSubs(prev => {
+      const next = new Set<number>();
+      prev.forEach(idx => {
+        if (idx < index) next.add(idx);
+        else if (idx === index) { next.add(idx); next.add(idx + 1); }
+        else next.add(idx + 1);
+      });
+      return next;
+    });
     // Auto-save after split
     performSave(updated);
   };
@@ -309,6 +337,20 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
     updated.splice(firstIdx, 0, merged);
     setSubtitles(updated);
     setSelectedSubs(new Set());
+
+    // Mark merged subtitle as edited
+    setEditedSubs(prev => {
+      const next = new Set<number>();
+      prev.forEach(idx => {
+        if (!indices.includes(idx)) {
+          const offset = indices.filter(ri => ri < idx).length;
+          next.add(idx - offset);
+        }
+      });
+      next.add(firstIdx);
+      return next;
+    });
+
     // Auto-save after merge
     performSave(updated);
 
@@ -333,6 +375,20 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
           <span style={{ fontSize: '0.85rem', fontWeight: 900 }}>✏️ Sub-Editor</span>
           <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontWeight: 700 }}>
             {subtitles.length} Zeilen
+            {editedSubs.size > 0 && (
+              <span style={{
+                marginLeft: 6,
+                padding: '0.1rem 0.4rem',
+                borderRadius: '999px',
+                background: 'rgba(34,197,94,0.12)',
+                border: '1.5px solid rgba(34,197,94,0.4)',
+                color: 'var(--color-accent)',
+                fontWeight: 900,
+                fontSize: '0.65rem',
+              }}>
+                ✅ {editedSubs.size} đã chỉnh
+              </span>
+            )}
           </span>
         </div>
 
@@ -568,6 +624,34 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
                     color: isCurrentPlaying ? 'var(--color-accent)' : isSelected ? '#f59e0b' : 'var(--color-text-muted)',
                   }}>{i + 1}</span>
 
+                  {/* Edited checkmark — auto-appears after merge or timing change */}
+                  {editedSubs.has(i) && (
+                    <span
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        width: 18, height: 18, borderRadius: '50%',
+                        background: 'rgba(34,197,94,0.2)',
+                        border: '2px solid rgba(34,197,94,0.6)',
+                        fontSize: '0.65rem',
+                        color: '#4ade80',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                        flexShrink: 0,
+                      }}
+                      title="Đã gộp / chỉnh thời gian ✓"
+                      onClick={() => {
+                        setEditedSubs(prev => {
+                          const next = new Set(prev);
+                          next.delete(i);
+                          return next;
+                        });
+                      }}
+                    >
+                      ✓
+                    </span>
+                  )}
+
                   {/* Play */}
                   <div style={{ textAlign: 'center' }}>
                     <button
@@ -593,6 +677,7 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
                       const val = parseFloat(e.target.value);
                       if (!isNaN(val) && val >= 0) {
                         updateSub(i, 'start', parseFloat(val.toFixed(2)));
+                        setEditedSubs(prev => new Set(prev).add(i));
                         playSubtitle({ start: parseFloat(val.toFixed(2)), dur: s.dur, text: s.text }, i);
                       }
                     }}
@@ -607,6 +692,7 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
                       const val = parseFloat(e.target.value);
                       if (!isNaN(val) && val > 0) {
                         updateSub(i, 'dur', parseFloat(val.toFixed(2)));
+                        setEditedSubs(prev => new Set(prev).add(i));
                         playSubtitle({ start: s.start, dur: parseFloat(val.toFixed(2)), text: s.text }, i);
                       }
                     }}

@@ -44,6 +44,8 @@ export default function SubtitleEditorPage() {
   const [saveMsg, setSaveMsg] = useState('');
   const [selectedSubs, setSelectedSubs] = useState<Set<number>>(new Set());
   const [playingIdx, setPlayingIdx] = useState<number | null>(null);
+  // Track subtitles that have been merged or had their timing adjusted
+  const [editedSubs, setEditedSubs] = useState<Set<number>>(new Set());
 
   // YouTube Player
   const playerRef = useRef<any>(null);
@@ -255,6 +257,14 @@ export default function SubtitleEditorPage() {
       });
       return next;
     });
+    setEditedSubs(prev => {
+      const next = new Set<number>();
+      prev.forEach(idx => {
+        if (idx < index) next.add(idx);
+        else if (idx > index) next.add(idx - 1);
+      });
+      return next;
+    });
   };
 
   const addSub = () => {
@@ -273,6 +283,14 @@ export default function SubtitleEditorPage() {
     setSubtitles(updated);
     // Shift selections after index
     setSelectedSubs(prev => {
+      const next = new Set<number>();
+      prev.forEach(idx => {
+        if (idx <= index) next.add(idx);
+        else next.add(idx + 1);
+      });
+      return next;
+    });
+    setEditedSubs(prev => {
       const next = new Set<number>();
       prev.forEach(idx => {
         if (idx <= index) next.add(idx);
@@ -336,6 +354,21 @@ export default function SubtitleEditorPage() {
     );
     setSubtitles(updated);
     setSelectedSubs(new Set());
+    // Remap editedSubs: the split row becomes 2 rows, shift everything after
+    setEditedSubs(prev => {
+      const next = new Set<number>();
+      prev.forEach(idx => {
+        if (idx < index) next.add(idx);
+        else if (idx === index) {
+          // Original edited row splits into two — keep both marked
+          next.add(idx);
+          next.add(idx + 1);
+        } else {
+          next.add(idx + 1);
+        }
+      });
+      return next;
+    });
   };
 
   const toggleSubSelect = (index: number) => {
@@ -373,6 +406,21 @@ export default function SubtitleEditorPage() {
     updated.splice(firstIdx, 0, merged);
     setSubtitles(updated);
     setSelectedSubs(new Set());
+
+    // Mark merged subtitle as edited (recalculate indices after removal)
+    setEditedSubs(prev => {
+      const next = new Set<number>();
+      // Remap existing edited indices after merge removal
+      prev.forEach(idx => {
+        if (!indices.includes(idx)) {
+          const offset = indices.filter(ri => ri < idx).length;
+          next.add(idx - offset);
+        }
+      });
+      // Mark the merged result
+      next.add(firstIdx);
+      return next;
+    });
 
     // Auto-play the merged subtitle to preview
     setTimeout(() => {
@@ -675,6 +723,20 @@ export default function SubtitleEditorPage() {
             <div style={{ flex: 1 }} />
             <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', fontWeight: 700 }}>
               {subtitles.length} Zeilen
+              {editedSubs.size > 0 && (
+                <span style={{
+                  marginLeft: 8,
+                  padding: '0.15rem 0.5rem',
+                  borderRadius: '999px',
+                  background: 'rgba(34,197,94,0.12)',
+                  border: '1.5px solid rgba(34,197,94,0.4)',
+                  color: 'var(--color-accent)',
+                  fontWeight: 900,
+                  fontSize: '0.68rem',
+                }}>
+                  ✅ {editedSubs.size} đã chỉnh
+                </span>
+              )}
             </span>
           </div>
 
@@ -683,7 +745,7 @@ export default function SubtitleEditorPage() {
             {/* Header */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '32px 40px 32px 90px 70px 1fr 80px',
+              gridTemplateColumns: '32px 40px 24px 32px 90px 70px 1fr 80px',
               gap: 6,
               padding: '6px 8px',
               borderBottom: '2.5px solid var(--color-border)',
@@ -699,6 +761,7 @@ export default function SubtitleEditorPage() {
             }}>
               <span style={{ textAlign: 'center' }}>☐</span>
               <span>#</span>
+              <span style={{ textAlign: 'center', fontSize: '0.72rem' }} title="Đã chỉnh xong">✅</span>
               <span style={{ textAlign: 'center' }}>▶</span>
               <span>Start</span>
               <span>Dauer (s)</span>
@@ -715,7 +778,7 @@ export default function SubtitleEditorPage() {
                   key={i}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '32px 40px 32px 90px 70px 1fr 80px',
+                    gridTemplateColumns: '32px 40px 24px 32px 90px 70px 1fr 80px',
                     gap: 6,
                     padding: '6px 8px',
                     borderBottom: '1px solid var(--color-border)',
@@ -752,6 +815,55 @@ export default function SubtitleEditorPage() {
                     {i + 1}
                   </span>
 
+                  {/* Edited checkmark */}
+                  <div style={{ textAlign: 'center' }}>
+                    {editedSubs.has(i) ? (
+                      <span
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          width: 18, height: 18, borderRadius: '50%',
+                          background: 'rgba(34,197,94,0.15)',
+                          border: '1.5px solid rgba(34,197,94,0.5)',
+                          fontSize: '0.6rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s',
+                        }}
+                        title="Đã gộp / chỉnh thời gian — bấm để bỏ dấu"
+                        onClick={() => {
+                          setEditedSubs(prev => {
+                            const next = new Set(prev);
+                            next.delete(i);
+                            return next;
+                          });
+                        }}
+                      >
+                        ✓
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          width: 18, height: 18, borderRadius: '50%',
+                          border: '1.5px dashed rgba(255,255,255,0.1)',
+                          fontSize: '0.6rem',
+                          cursor: 'pointer',
+                          opacity: 0.2,
+                          transition: 'all 0.15s',
+                        }}
+                        title="Bấm để đánh dấu đã chỉnh xong"
+                        onClick={() => {
+                          setEditedSubs(prev => {
+                            const next = new Set(prev);
+                            next.add(i);
+                            return next;
+                          });
+                        }}
+                      >
+                        ○
+                      </span>
+                    )}
+                  </div>
+
                   {/* Play button */}
                   <div style={{ textAlign: 'center' }}>
                     <button
@@ -784,6 +896,8 @@ export default function SubtitleEditorPage() {
                       const val = parseFloat(e.target.value);
                       if (!isNaN(val) && val >= 0) {
                         updateSub(i, 'start', parseFloat(val.toFixed(2)));
+                        // Mark as edited (timing adjusted)
+                        setEditedSubs(prev => new Set(prev).add(i));
                         // Auto-play with new start time
                         playSubtitle({ start: parseFloat(val.toFixed(2)), dur: s.dur, text: s.text }, i);
                       }
@@ -813,6 +927,8 @@ export default function SubtitleEditorPage() {
                       const val = parseFloat(e.target.value);
                       if (!isNaN(val) && val > 0) {
                         updateSub(i, 'dur', parseFloat(val.toFixed(2)));
+                        // Mark as edited (timing adjusted)
+                        setEditedSubs(prev => new Set(prev).add(i));
                         // Auto-play with new duration
                         playSubtitle({ start: s.start, dur: parseFloat(val.toFixed(2)), text: s.text }, i);
                       }

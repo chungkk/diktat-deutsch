@@ -105,6 +105,7 @@ export default function LessonPage() {
   const [editSelectedSubs, setEditSelectedSubs] = useState<Set<number>>(new Set());
   const [editSaving, setEditSaving] = useState(false);
   const [editSaveMsg, setEditSaveMsg] = useState('');
+  const [editEditedSubs, setEditEditedSubs] = useState<Set<number>>(new Set());
   const editTextRefs = useRef<Map<number, HTMLInputElement>>(new Map());
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -612,6 +613,7 @@ export default function LessonPage() {
     if (!lesson) return;
     setEditSubtitles(JSON.parse(JSON.stringify(lesson.subtitles)));
     setEditSelectedSubs(new Set());
+    setEditEditedSubs(new Set());
     setEditSaveMsg('');
     setEditMode(true);
   }, [lesson]);
@@ -640,6 +642,14 @@ export default function LessonPage() {
       });
       return next;
     });
+    setEditEditedSubs(prev => {
+      const next = new Set<number>();
+      prev.forEach(idx => {
+        if (idx < index) next.add(idx);
+        else if (idx > index) next.add(idx - 1);
+      });
+      return next;
+    });
   }, []);
 
   const insertEditSubAfter = useCallback((index: number) => {
@@ -651,6 +661,14 @@ export default function LessonPage() {
       const updated = [...prev];
       updated.splice(index + 1, 0, { start: newStart, dur: Math.min(newDur, 5), text: '' });
       return updated;
+    });
+    setEditEditedSubs(prev => {
+      const next = new Set<number>();
+      prev.forEach(idx => {
+        if (idx <= index) next.add(idx);
+        else next.add(idx + 1);
+      });
+      return next;
     });
   }, []);
 
@@ -694,6 +712,15 @@ export default function LessonPage() {
       return updated;
     });
     setEditSelectedSubs(new Set());
+    setEditEditedSubs(prev => {
+      const next = new Set<number>();
+      prev.forEach(idx => {
+        if (idx < index) next.add(idx);
+        else if (idx === index) { next.add(idx); next.add(idx + 1); }
+        else next.add(idx + 1);
+      });
+      return next;
+    });
   }, []);
 
   const toggleEditSelect = useCallback((index: number) => {
@@ -719,6 +746,17 @@ export default function LessonPage() {
       return updated;
     });
     setEditSelectedSubs(new Set());
+    setEditEditedSubs(prev => {
+      const next = new Set<number>();
+      prev.forEach(idx => {
+        if (!indices.includes(idx)) {
+          const offset = indices.filter(ri => ri < idx).length;
+          next.add(idx - offset);
+        }
+      });
+      next.add(firstIdx);
+      return next;
+    });
   }, [editSelectedSubs]);
 
   const handleEditSave = useCallback(async () => {
@@ -828,7 +866,23 @@ export default function LessonPage() {
                   <button className="btn btn-secondary btn-sm" style={{ fontSize: '0.68rem', opacity: 0.7 }} onClick={() => setEditSelectedSubs(new Set())}>✕ Bỏ chọn</button>
                 )}
                 <div style={{ flex: 1 }} />
-                <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', fontWeight: 700 }}>{editSubtitles.length} Zeilen</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', fontWeight: 700 }}>
+                  {editSubtitles.length} Zeilen
+                  {editEditedSubs.size > 0 && (
+                    <span style={{
+                      marginLeft: 6,
+                      padding: '0.1rem 0.4rem',
+                      borderRadius: '999px',
+                      background: 'rgba(34,197,94,0.12)',
+                      border: '1.5px solid rgba(34,197,94,0.4)',
+                      color: 'var(--color-accent)',
+                      fontWeight: 900,
+                      fontSize: '0.65rem',
+                    }}>
+                      ✅ {editEditedSubs.size} đã chỉnh
+                    </span>
+                  )}
+                </span>
                 <button className="btn btn-primary btn-sm" onClick={handleEditSave} disabled={editSaving} style={{ fontSize: '0.72rem' }}>
                   {editSaving ? '⏳...' : '💾 Speichern'}
                 </button>
@@ -848,20 +902,37 @@ export default function LessonPage() {
                       style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#f59e0b', flexShrink: 0 }}
                     />
                     <span className="sub-number">{i + 1}</span>
+                    {editEditedSubs.has(i) && (
+                      <span
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          width: 20, height: 20, borderRadius: '50%',
+                          background: 'rgba(34,197,94,0.2)',
+                          border: '2px solid rgba(34,197,94,0.6)',
+                          fontSize: '0.7rem',
+                          color: '#4ade80',
+                          fontWeight: 900,
+                          flexShrink: 0,
+                        }}
+                        title="Đã gộp / chỉnh thời gian ✓"
+                      >
+                        ✓
+                      </span>
+                    )}
                     <button className="sub-play-btn" onClick={(e) => { e.stopPropagation(); seekToSub(sub, autoStop); }} title="Abspielen">🔊</button>
                     <span className="sub-time">{formatTime(sub.start)}</span>
                     <div className="sub-edit-time-group">
                       <input
                         type="number" step="0.1" min="0"
                         value={parseFloat(sub.start.toFixed(1))}
-                        onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0) { updateEditSub(i, 'start', parseFloat(v.toFixed(2))); seekToSub({ ...sub, start: parseFloat(v.toFixed(2)) }, autoStop); } }}
+                        onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0) { updateEditSub(i, 'start', parseFloat(v.toFixed(2))); setEditEditedSubs(prev => new Set(prev).add(i)); seekToSub({ ...sub, start: parseFloat(v.toFixed(2)) }, autoStop); } }}
                         className="sub-edit-time-input"
                         title="Start (s)"
                       />
                       <input
                         type="number" step="0.1" min="0.1"
                         value={parseFloat(sub.dur.toFixed(1))}
-                        onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v > 0) { updateEditSub(i, 'dur', parseFloat(v.toFixed(2))); seekToSub({ ...sub, dur: parseFloat(v.toFixed(2)) }, autoStop); } }}
+                        onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v > 0) { updateEditSub(i, 'dur', parseFloat(v.toFixed(2))); setEditEditedSubs(prev => new Set(prev).add(i)); seekToSub({ ...sub, dur: parseFloat(v.toFixed(2)) }, autoStop); } }}
                         className="sub-edit-time-input"
                         title="Dauer (s)"
                       />

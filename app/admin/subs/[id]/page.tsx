@@ -815,20 +815,22 @@ export default function SubtitleEditorPage() {
                     {i + 1}
                   </span>
 
-                  {/* Edited checkmark */}
+                  {/* Edited checkmark — auto-appears after merge or timing change */}
                   <div style={{ textAlign: 'center' }}>
-                    {editedSubs.has(i) ? (
+                    {editedSubs.has(i) && (
                       <span
                         style={{
                           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          width: 18, height: 18, borderRadius: '50%',
-                          background: 'rgba(34,197,94,0.15)',
-                          border: '1.5px solid rgba(34,197,94,0.5)',
-                          fontSize: '0.6rem',
+                          width: 20, height: 20, borderRadius: '50%',
+                          background: 'rgba(34,197,94,0.2)',
+                          border: '2px solid rgba(34,197,94,0.6)',
+                          fontSize: '0.7rem',
+                          color: '#4ade80',
+                          fontWeight: 900,
                           cursor: 'pointer',
                           transition: 'all 0.15s',
                         }}
-                        title="Đã gộp / chỉnh thời gian — bấm để bỏ dấu"
+                        title="Đã gộp / chỉnh thời gian ✓ — bấm để bỏ dấu"
                         onClick={() => {
                           setEditedSubs(prev => {
                             const next = new Set(prev);
@@ -838,28 +840,6 @@ export default function SubtitleEditorPage() {
                         }}
                       >
                         ✓
-                      </span>
-                    ) : (
-                      <span
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          width: 18, height: 18, borderRadius: '50%',
-                          border: '1.5px dashed rgba(255,255,255,0.1)',
-                          fontSize: '0.6rem',
-                          cursor: 'pointer',
-                          opacity: 0.2,
-                          transition: 'all 0.15s',
-                        }}
-                        title="Bấm để đánh dấu đã chỉnh xong"
-                        onClick={() => {
-                          setEditedSubs(prev => {
-                            const next = new Set(prev);
-                            next.add(i);
-                            return next;
-                          });
-                        }}
-                      >
-                        ○
                       </span>
                     )}
                   </div>

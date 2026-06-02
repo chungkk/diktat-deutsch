@@ -920,6 +920,11 @@ export default function LessonPage() {
                       </span>
                     )}
                     <button className="sub-play-btn" onClick={(e) => { e.stopPropagation(); seekToSub(sub, autoStop); }} title="Abspielen">🔊</button>
+                    <div className="sub-edit-actions">
+                      <button onClick={() => splitEditSub(i)} className="sub-edit-action-btn" title="Split (✂️)">✂️</button>
+                      <button onClick={() => insertEditSubAfter(i)} className="sub-edit-action-btn" title="Einfügen (➕)">➕</button>
+                      <button onClick={() => deleteEditSub(i)} className="sub-edit-action-btn" title="Löschen (🗑)">🗑</button>
+                    </div>
                     <span className="sub-time">{formatTime(sub.start)}</span>
                     <div className="sub-edit-time-group">
                       <input
@@ -936,11 +941,6 @@ export default function LessonPage() {
                         className="sub-edit-time-input"
                         title="Dauer (s)"
                       />
-                    </div>
-                    <div className="sub-edit-actions">
-                      <button onClick={() => splitEditSub(i)} className="sub-edit-action-btn" title="Split (✂️)">✂️</button>
-                      <button onClick={() => insertEditSubAfter(i)} className="sub-edit-action-btn" title="Einfügen (➕)">➕</button>
-                      <button onClick={() => deleteEditSub(i)} className="sub-edit-action-btn" title="Löschen (🗑)">🗑</button>
                     </div>
                   </div>
                   <div className="sub-cloze" style={{ paddingLeft: '2.8rem' }}>

@@ -669,6 +669,25 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
                     >{isCurrentPlaying ? '⏹' : '▶'}</button>
                   </div>
 
+                  {/* Actions */}
+                  <div style={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+                    <button
+                      onClick={() => splitSub(i)}
+                      className="inline-sub-action-btn"
+                      title="Split"
+                    >✂️</button>
+                    <button
+                      onClick={() => insertSubAfter(i)}
+                      className="inline-sub-action-btn"
+                      title="Einfügen"
+                    >➕</button>
+                    <button
+                      onClick={() => deleteSub(i)}
+                      className="inline-sub-action-btn"
+                      title="Löschen"
+                    >🗑</button>
+                  </div>
+
                   {/* Start */}
                   <input
                     type="number" step="0.1" min="0"
@@ -711,25 +730,6 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
                     className="inline-sub-input inline-sub-input-text"
                     placeholder="Untertiteltext..."
                   />
-
-                  {/* Actions */}
-                  <div style={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
-                    <button
-                      onClick={() => splitSub(i)}
-                      className="inline-sub-action-btn"
-                      title="Split"
-                    >✂️</button>
-                    <button
-                      onClick={() => insertSubAfter(i)}
-                      className="inline-sub-action-btn"
-                      title="Einfügen"
-                    >➕</button>
-                    <button
-                      onClick={() => deleteSub(i)}
-                      className="inline-sub-action-btn"
-                      title="Löschen"
-                    >🗑</button>
-                  </div>
                 </div>
               );
             })}

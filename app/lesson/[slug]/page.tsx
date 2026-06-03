@@ -607,6 +607,11 @@ export default function LessonPage() {
 
     if (lesson && subTokens[subIdx]) {
       const { words, blanks } = subTokens[subIdx];
+
+      // Track this revealed word in correctInputs
+      if (!correctInputsRef.current[subIdx]) correctInputsRef.current[subIdx] = {};
+      correctInputsRef.current[subIdx][wordIdx] = words[wordIdx];
+
       const subResults = blankResults[subIdx] || {};
       const allRevealed = words.every((_, wi) => {
         if (!blanks.has(wi)) return true;                          // visible word (not a blank) — always ok
@@ -616,6 +621,8 @@ export default function LessonPage() {
       });
 
       if (allRevealed && !completedIndicesRef.current.includes(subIdx)) {
+        // Sentence fully completed — clean up correctInputs for this sub
+        delete correctInputsRef.current[subIdx];
         const newCompleted = [...completedIndicesRef.current, subIdx];
         completedIndicesRef.current = newCompleted;
         setCompletedIndices(newCompleted);
@@ -646,6 +653,9 @@ export default function LessonPage() {
             }, 150);
           }
         }, 600);
+      } else {
+        // Partial reveal — save the partial correct inputs
+        saveProgress(completedIndicesRef.current, score, totalAttempts);
       }
     }
   };

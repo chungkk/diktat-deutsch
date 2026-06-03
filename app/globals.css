@@ -437,7 +437,7 @@ a:hover { color: var(--color-accent-hover); }
   display: inline-flex; align-items: center; justify-content: center;
   gap: 0.3rem;
   flex: 1 1 0;
-  padding: 0.3rem 0.6rem;
+  padding: 0.55rem 0.6rem;
   background: var(--color-bg-card);
   border: 1.5px solid var(--color-border);
   border-radius: 999px;

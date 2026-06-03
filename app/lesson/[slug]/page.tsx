@@ -826,32 +826,29 @@ export default function LessonPage() {
   return (
     <div className="lesson-page">
       <header className="lesson-header">
-        <button className="lesson-back-btn" onClick={() => router.push('/')}>← Zurück</button>
-        <h1 className="lesson-header-title">{lesson.title}</h1>
-        <div className="lesson-header-meta">
+        <button className="lesson-back-btn" onClick={() => router.push('/')}>←</button>
+        <button
+          className={`lesson-edit-btn ${editMode ? 'lesson-edit-btn-active' : ''}`}
+          onClick={() => editMode ? exitEditMode() : enterEditMode()}
+          title={editMode ? 'Editor schließen' : 'Untertitel bearbeiten'}
+        >
+          ✏️ {editMode ? 'Schließen' : 'Edit'}
+        </button>
+        {hasCustomSubs && !editMode && (
+          <span className="lesson-custom-sub-badge" title="Du verwendest eigene Untertitel">📝 Meine Sub</span>
+        )}
+        {hasCustomSubs && (
           <button
-            className={`lesson-edit-btn ${editMode ? 'lesson-edit-btn-active' : ''}`}
-            onClick={() => editMode ? exitEditMode() : enterEditMode()}
-            title={editMode ? 'Editor schließen' : 'Untertitel bearbeiten'}
+            className="lesson-reset-btn"
+            onClick={handleResetSubs}
+            title="Eigene Untertitel löschen und zurück zum Original"
           >
-            ✏️ {editMode ? 'Schließen' : 'Edit'}
+            🔄 Reset
           </button>
-          {hasCustomSubs && !editMode && (
-            <span className="lesson-custom-sub-badge" title="Du verwendest eigene Untertitel">📝 Meine Sub</span>
-          )}
-          {hasCustomSubs && (
-            <button
-              className="lesson-reset-btn"
-              onClick={handleResetSubs}
-              title="Eigene Untertitel löschen und zurück zum Original"
-            >
-              🔄 Reset
-            </button>
-          )}
-          <span className="lesson-level">{lesson.level}</span>
-          <span>{totalSubs} Sätze</span>
-          <span>{isPlaying ? '▶ Spielt' : '⏸ Pausiert'}</span>
-        </div>
+        )}
+        <span className="lesson-level">{lesson.level}</span>
+        <span className="lesson-header-stat">{totalSubs} Sätze</span>
+        <span className="lesson-header-stat">{isPlaying ? '▶' : '⏸'} {isPlaying ? 'Spielt' : 'Pausiert'}</span>
       </header>
 
       <div className="lesson-split">

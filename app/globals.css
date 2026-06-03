@@ -434,8 +434,9 @@ a:hover { color: var(--color-accent-hover); }
   flex-wrap: wrap;
 }
 .ctrl-btn {
-  display: inline-flex; align-items: center;
+  display: inline-flex; align-items: center; justify-content: center;
   gap: 0.3rem;
+  flex: 1 1 0;
   padding: 0.3rem 0.6rem;
   background: var(--color-bg-card);
   border: 1.5px solid var(--color-border);
@@ -487,6 +488,7 @@ a:hover { color: var(--color-accent-hover); }
 }
 .lesson-back-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
 .lesson-header-stat { color: var(--color-text-secondary); font-size: 0.7rem; font-weight: 700; }
+.lesson-header-stat:first-of-type { margin-left: auto; }
 
 /* PROGRESS SECTION */
 .lesson-progress-section {

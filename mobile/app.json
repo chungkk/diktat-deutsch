@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "Diktat Deutsch",
+    "slug": "diktat-deutsch",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "diktat-deutsch",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "pro.ckk.diktat"
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
+  }
+}

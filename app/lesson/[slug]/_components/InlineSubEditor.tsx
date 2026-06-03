@@ -15,7 +15,6 @@ interface InlineSubEditorProps {
   lessonId: string;
   youtubeId?: string;
   subtitles: Subtitle[];
-  isAdmin?: boolean;
   onClose: () => void;
   onSaved: (updatedSubtitles: Subtitle[]) => void;
 }
@@ -26,7 +25,7 @@ function formatTime(seconds: number): string {
   return `${m}:${s.padStart(4, '0')}`;
 }
 
-export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initialSubs, isAdmin = false, onClose, onSaved }: InlineSubEditorProps) {
+export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initialSubs, onClose, onSaved }: InlineSubEditorProps) {
   const [subtitles, setSubtitles] = useState<Subtitle[]>(JSON.parse(JSON.stringify(initialSubs)));
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
@@ -162,26 +161,16 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
   }, []);
 
   // Save helper that accepts an explicit subtitles array (avoids stale closure)
+  // InlineSubEditor is only used on the lesson page → always saves to personal custom subtitles
   const performSave = useCallback(async (subsToSave: Subtitle[]) => {
     setSaving(true);
     setSaveMsg('');
     try {
-      let res: Response;
-      if (isAdmin) {
-        // Admin saves to the lesson (base subtitles)
-        res = await fetch(`/api/lessons/${lessonId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subtitles: subsToSave }),
-        });
-      } else {
-        // Regular user saves to personal custom subtitles
-        res = await fetch('/api/user-subtitles', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lessonId, subtitles: subsToSave }),
-        });
-      }
+      const res = await fetch('/api/user-subtitles', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lessonId, subtitles: subsToSave }),
+      });
       if (res.ok) {
         setSaveMsg('✅ Gespeichert!');
         onSaved(subsToSave);
@@ -193,7 +182,7 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
       setSaveMsg('❌ Fehler beim Speichern');
     }
     setSaving(false);
-  }, [lessonId, isAdmin, onSaved]);
+  }, [lessonId, onSaved]);
 
   // Manual save (button)
   const handleSave = async () => {

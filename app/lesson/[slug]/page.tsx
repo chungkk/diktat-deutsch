@@ -781,26 +781,17 @@ export default function LessonPage() {
     setEditSaving(true);
     setEditSaveMsg('');
     try {
-      let res: Response;
-      if (isAdmin) {
-        // Admin saves to the lesson (base subtitles)
-        res = await fetch(`/api/lessons/${lesson._id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subtitles: editSubtitles }),
-        });
-      } else {
-        // Regular user saves to personal custom subtitles
-        res = await fetch('/api/user-subtitles', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lessonId: lesson._id, subtitles: editSubtitles }),
-        });
-      }
+      // Lesson page always saves to personal custom subtitles (for ALL users including admin)
+      // Only the admin page (/admin) saves directly to base lesson subtitles
+      const res = await fetch('/api/user-subtitles', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lessonId: lesson._id, subtitles: editSubtitles }),
+      });
       if (res.ok) {
         setEditSaveMsg('✅ Gespeichert!');
         setLesson(prev => prev ? { ...prev, subtitles: JSON.parse(JSON.stringify(editSubtitles)) } : prev);
-        if (!isAdmin) setHasCustomSubs(true);
+        setHasCustomSubs(true);
         setTimeout(() => setEditSaveMsg(''), 3000);
       } else {
         setEditSaveMsg('❌ Fehler');
@@ -809,7 +800,7 @@ export default function LessonPage() {
       setEditSaveMsg('❌ Fehler');
     }
     setEditSaving(false);
-  }, [lesson, editSubtitles, isAdmin]);
+  }, [lesson, editSubtitles]);
 
   // Reset custom subtitles back to original
   const handleResetSubs = useCallback(async () => {

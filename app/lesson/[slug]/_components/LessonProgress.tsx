@@ -4,12 +4,10 @@ interface LessonProgressProps {
   completedCount: number;
   totalSubs: number;
   pct: number;
-  blankMode: 50 | 100;
   videoBlurLevel: 0 | 1 | 2;
   shadowingMode: boolean;
   bookmarkCount: number;
   autoStop: boolean;
-  onModeChange: (mode: 50 | 100) => void;
   onCycleBlur: () => void;
   onToggleShadowing: () => void;
   onToggleAutoStop: () => void;
@@ -19,12 +17,10 @@ export default function LessonProgress({
   completedCount,
   totalSubs,
   pct,
-  blankMode,
   videoBlurLevel,
   shadowingMode,
   bookmarkCount,
   autoStop,
-  onModeChange,
   onCycleBlur,
   onToggleShadowing,
   onToggleAutoStop,
@@ -42,26 +38,7 @@ export default function LessonProgress({
         </div>
       </div>
 
-      {/* Difficulty toggle */}
-      <div className="mode-toggle">
-        <span className="mode-label">Modus</span>
-        <div className="mode-buttons">
-          <button
-            className={`mode-btn ${!shadowingMode && blankMode === 50 ? 'mode-btn-active' : ''}`}
-            onClick={() => { onModeChange(50); if (shadowingMode) onToggleShadowing(); }}
-          >
-            50%
-          </button>
-          <button
-            className={`mode-btn ${!shadowingMode && blankMode === 100 ? 'mode-btn-active' : ''}`}
-            onClick={() => { onModeChange(100); if (shadowingMode) onToggleShadowing(); }}
-          >
-            100%
-          </button>
-        </div>
-      </div>
-
-      {/* Controls group — Shadowing + Video blur */}
+      {/* Controls group — Shadowing + Video blur + Auto-Stop */}
       <div className="lesson-ctrl-group">
         {/* Shadowing toggle */}
         <button

@@ -45,7 +45,7 @@ function isRealWord(w: string): boolean {
 }
 
 // Decide which word indices should be blanks
-function pickBlanks(words: string[], seed: number, mode: 50 | 100): Set<number> {
+function pickBlanks(words: string[], seed: number): Set<number> {
   const blanks = new Set<number>();
 
   // Count real words in this subtitle
@@ -57,15 +57,10 @@ function pickBlanks(words: string[], seed: number, mode: 50 | 100): Set<number> 
   // Sentences with 0 or 1 real word → show as-is, no blanks
   if (realWordIndices.length <= 1) return blanks;
 
-  if (mode === 100) {
-    // Blank every REAL word — never blank punctuation-only tokens
-    realWordIndices.forEach(i => blanks.add(i));
-    return blanks;
-  }
-
-  // Mode 50%: alternate real words based on seed
+  // 60% mode: blank roughly 60% of real words using seed-based selection
   for (const i of realWordIndices) {
-    if ((seed + i) % 2 === 0) blanks.add(i);
+    // Use a simple hash to decide: 3 out of every 5 words are blanked
+    if ((seed + i * 3 + 1) % 5 < 3) blanks.add(i);
   }
 
   // Ensure at least one blank exists
@@ -95,7 +90,7 @@ export default function LessonPage() {
   const [totalAttempts, setTotalAttempts] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [blankMode, setBlankMode] = useState<50 | 100>(100);
+  const blankMode = 60 as const;
   const [revealedWords, setRevealedWords] = useState<Set<string>>(new Set());
   const [videoBlurLevel, setVideoBlurLevel] = useState<0 | 1 | 2>(0);
   const [bookmarkedIndices, setBookmarkedIndices] = useState<Set<number>>(new Set());
@@ -130,17 +125,12 @@ export default function LessonPage() {
     if (!lesson) return [];
     return lesson.subtitles.map((sub, i) => {
       const words = tokenize(sub.text);
-      const blanks = pickBlanks(words, i * 7 + 3, blankMode);
+      const blanks = pickBlanks(words, i * 7 + 3);
       return { words, blanks };
     });
-  }, [lesson, blankMode]);
+  }, [lesson]);
 
-  // Reset inputs when mode changes (intentional setState in effect)
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => {
-    setBlankInputs({});
-    setBlankResults({});
-  }, [blankMode]);
+
 
   // Load lesson + progress + custom subs
   useEffect(() => {
@@ -884,11 +874,9 @@ export default function LessonPage() {
               completedCount={completedIndices.length}
               totalSubs={totalSubs}
               pct={pct}
-              blankMode={blankMode}
               videoBlurLevel={videoBlurLevel}
               shadowingMode={shadowingMode}
               bookmarkCount={bookmarkedIndices.size}
-              onModeChange={setBlankMode}
               onCycleBlur={cycleVideoBlur}
               onToggleShadowing={toggleShadowingMode}
               autoStop={autoStop}

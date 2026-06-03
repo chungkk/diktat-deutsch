@@ -22,7 +22,7 @@ interface ClozeRowProps {
   subResults: Record<number, 'correct' | 'incorrect'>;
   subInputs: Record<number, string>;
   revealedWords: Set<string>;
-  blankMode: 50 | 100;
+  blankMode: number;
   blankRefs: RefObject<Record<string, HTMLInputElement | null>>;
   hiddenWordRefs: RefObject<Record<string, HTMLSpanElement | null>>;
   onSelect: (index: number) => void;
@@ -78,7 +78,7 @@ export default function ClozeRow({
       // In 50% mode, non-blank words and correctly typed blanks should stay visible
       const hasAnyRevealed = words.some((_, wi) => revealedWords.has(`${index}-${wi}`));
       const hasAnyCorrect = Object.values(subResults).some(r => r === 'correct');
-      const hasPartialProgress = blankMode === 50 || hasAnyRevealed || hasAnyCorrect;
+      const hasPartialProgress = hasAnyRevealed || hasAnyCorrect;
 
       if (hasPartialProgress) {
         return (
@@ -86,9 +86,9 @@ export default function ClozeRow({
             {words.map((word, wi) => {
               const isWordRevealed = revealedWords.has(`${index}-${wi}`);
               const isWordCorrect = blanks.has(wi) && subResults[wi] === 'correct';
-              const isNonBlankIn50 = blankMode === 50 && !blanks.has(wi);
+              const isNonBlank = !blanks.has(wi);
 
-              if (isWordRevealed || isWordCorrect || isNonBlankIn50) {
+              if (isWordRevealed || isWordCorrect || isNonBlank) {
                 return (
                   <span key={wi} className={`cloze-word ${isWordCorrect ? 'cloze-correct' : 'cloze-revealed'}`}>
                     {word}{' '}
@@ -134,61 +134,11 @@ export default function ClozeRow({
             );
           }
 
+          // Non-blank words are always visible in 60% mode
           if (!isBlank) {
-            if (blankMode === 50 || isRevealed) {
-              return (
-                <span key={wi} className="cloze-word cloze-revealed">
-                  {word}{' '}
-                </span>
-              );
-            }
             return (
-              <span
-                key={wi}
-                ref={(el) => {
-                  if (hiddenWordRefs.current) hiddenWordRefs.current[`${index}-${wi}`] = el;
-                }}
-                className="cloze-word cloze-square-box"
-                tabIndex={0}
-                onDoubleClick={(e) => {
-                  e.stopPropagation();
-                  onRevealWord(index, wi);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onRevealWord(index, wi);
-                    // Auto-focus next hidden word after reveal
-                    setTimeout(() => {
-                      const hiddenIndices = words
-                        .map((_, i) => i)
-                        .filter(i => i !== wi && !blanks.has(i) && !revealedWords.has(`${index}-${i}`) && blankMode === 100);
-                      if (hiddenIndices.length > 0) {
-                        // Pick the next one after current position, or first available
-                        const next = hiddenIndices.find(i => i > wi) ?? hiddenIndices[0];
-                        hiddenWordRefs.current?.[`${index}-${next}`]?.focus();
-                      }
-                    }, 50);
-                  }
-                  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    // Collect all hidden word indices in this row
-                    const hiddenIndices = words
-                      .map((_, i) => i)
-                      .filter(i => !blanks.has(i) && !revealedWords.has(`${index}-${i}`) && blankMode === 100);
-                    const pos = hiddenIndices.indexOf(wi);
-                    const nextPos = e.key === 'ArrowLeft' ? pos - 1 : pos + 1;
-                    if (nextPos >= 0 && nextPos < hiddenIndices.length) {
-                      hiddenWordRefs.current?.[`${index}-${hiddenIndices[nextPos]}`]?.focus();
-                    }
-                  }
-                }}
-                title="Enter zum Anzeigen / ← → zum Navigieren"
-              >
-                {cleanWord.replace(/./g, '■')}
-                {punct}{' '}
+              <span key={wi} className="cloze-word cloze-revealed">
+                {word}{' '}
               </span>
             );
           }

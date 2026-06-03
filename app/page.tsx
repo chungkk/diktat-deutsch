@@ -70,7 +70,7 @@ function ProgressRing({ pct, size = 44, stroke = 3.5, levelColor }: { pct: numbe
   const color = pct >= 90 ? '#4ade80' : (levelColor || '#22c55e');
 
   return (
-    <svg width={size} height={size} style={{ flexShrink: 0 }}>
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0 }}>
       <circle
         cx={size / 2} cy={size / 2} r={radius}
         fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={stroke}
@@ -110,6 +110,8 @@ export default function HomePage() {
   const [progress, setProgress] = useState<Progress[]>([]);
   const [lessonsReady, setLessonsReady] = useState(false);
   const [progressReady, setProgressReady] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const LESSONS_PER_PAGE = 6;
   const router = useRouter();
   const fetchIdRef = useRef(0);
 
@@ -264,26 +266,30 @@ export default function HomePage() {
               </span>
             </div>
             <div className="home-grid">
-              {lessons
-                .map((lesson, idx) => ({
-                  lesson,
-                  idx,
-                  isLocked: false,
-                }))
-                .sort((a, b) => {
-                  const aPct = getLessonPct(a.lesson._id, a.lesson.subtitles?.length || 0);
-                  const bPct = getLessonPct(b.lesson._id, b.lesson.subtitles?.length || 0);
-                  // Lessons with progress come first, sorted by % descending
-                  if (aPct > 0 && bPct === 0) return -1;
-                  if (aPct === 0 && bPct > 0) return 1;
-                  if (aPct > 0 && bPct > 0) {
-                    // Stable sort: use original index as tiebreaker
-                    if (bPct !== aPct) return bPct - aPct;
+              {(() => {
+                const sorted = lessons
+                  .map((lesson, idx) => ({
+                    lesson,
+                    idx,
+                    isLocked: false,
+                  }))
+                  .sort((a, b) => {
+                    const aPct = getLessonPct(a.lesson._id, a.lesson.subtitles?.length || 0);
+                    const bPct = getLessonPct(b.lesson._id, b.lesson.subtitles?.length || 0);
+                    if (aPct > 0 && bPct === 0) return -1;
+                    if (aPct === 0 && bPct > 0) return 1;
+                    if (aPct > 0 && bPct > 0) {
+                      if (bPct !== aPct) return bPct - aPct;
+                      return a.idx - b.idx;
+                    }
                     return a.idx - b.idx;
-                  }
-                  return a.idx - b.idx;
-                })
-                .map(({ lesson, idx, isLocked }) => {
+                  });
+
+                const totalPages = Math.ceil(sorted.length / LESSONS_PER_PAGE);
+                const startIdx = (currentPage - 1) * LESSONS_PER_PAGE;
+                const paginated = sorted.slice(startIdx, startIdx + LESSONS_PER_PAGE);
+
+                return paginated.map(({ lesson, idx, isLocked }) => {
                 const prog = getProgress(lesson._id);
                 const totalSubs = lesson.subtitles?.length || 0;
                 const completed = prog?.completedIndices?.length || 0;
@@ -417,8 +423,55 @@ export default function HomePage() {
                     {cardContent}
                   </Link>
                 );
-              })}
+              });
+              })()}
             </div>
+
+            {/* Pagination */}
+            {lessons.length > LESSONS_PER_PAGE && (() => {
+              const totalPages = Math.ceil(lessons.length / LESSONS_PER_PAGE);
+              const pages: number[] = [];
+              for (let p = 1; p <= totalPages; p++) pages.push(p);
+
+              return (
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  gap: 6, marginTop: '1rem', flexWrap: 'wrap',
+                }}>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', minWidth: 0, fontWeight: 900 }}
+                    onClick={() => { setCurrentPage(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    disabled={currentPage === 1}
+                  >←</button>
+
+                  {pages.map(p => (
+                    <button
+                      key={p}
+                      className="btn btn-sm"
+                      style={{
+                        padding: '0.3rem 0.55rem', fontSize: '0.78rem', minWidth: 0,
+                        background: p === currentPage ? 'var(--color-accent)' : 'rgba(255,255,255,0.05)',
+                        color: p === currentPage ? '#0a1a0e' : 'var(--color-text-primary)',
+                        border: p === currentPage ? '2px solid #15803d' : '2px solid var(--color-border)',
+                        fontWeight: 900,
+                        borderRadius: '0.75rem',
+                        boxShadow: p === currentPage ? '2px 2px 0 #15803d' : 'none',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onClick={() => { setCurrentPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    >{p}</button>
+                  ))}
+
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', minWidth: 0, fontWeight: 900 }}
+                    onClick={() => { setCurrentPage(p => Math.min(totalPages, p + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    disabled={currentPage === totalPages}
+                  >→</button>
+                </div>
+              );
+            })()}
           </>
         )}
       </div>

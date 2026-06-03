@@ -745,12 +745,12 @@ export default function SubtitleEditorPage() {
             {/* Header */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '32px 40px 24px 32px 90px 70px 1fr 80px',
+              gridTemplateColumns: '32px 40px 26px 60px 95px 75px 1fr 60px',
               gap: 6,
-              padding: '6px 8px',
+              padding: '8px 10px',
               borderBottom: '2.5px solid var(--color-border)',
               fontWeight: 900,
-              fontSize: '0.68rem',
+              fontSize: '0.76rem',
               color: 'var(--color-accent)',
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
@@ -778,9 +778,9 @@ export default function SubtitleEditorPage() {
                   key={i}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '32px 40px 24px 32px 90px 70px 1fr 80px',
+                    gridTemplateColumns: '32px 40px 26px 60px 95px 75px 1fr 60px',
                     gap: 6,
-                    padding: '6px 8px',
+                    padding: '8px 10px',
                     borderBottom: '1px solid var(--color-border)',
                     alignItems: 'center',
                     background: isPlaying
@@ -808,7 +808,7 @@ export default function SubtitleEditorPage() {
 
                   {/* Row number */}
                   <span style={{
-                    fontSize: '0.72rem', fontWeight: 900,
+                    fontSize: '0.82rem', fontWeight: 900,
                     color: isPlaying ? 'var(--color-accent)' : isSelected ? '#f59e0b' : 'var(--color-text-muted)',
                     textAlign: 'center',
                   }}>
@@ -844,8 +844,8 @@ export default function SubtitleEditorPage() {
                     )}
                   </div>
 
-                  {/* Play button */}
-                  <div style={{ textAlign: 'center' }}>
+                  {/* Play + Delete buttons */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
                     <button
                       onClick={() => isPlaying ? stopPlayback() : playSubtitle(s, i)}
                       style={{
@@ -863,6 +863,19 @@ export default function SubtitleEditorPage() {
                       title={isPlaying ? 'Stop' : `Abspielen ${formatTime(s.start)} – ${formatTime(endTime)}`}
                     >
                       {isPlaying ? '⏹' : '▶'}
+                    </button>
+                    <button
+                      onClick={() => deleteSub(i)}
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        fontSize: '0.8rem', padding: '2px', opacity: 0.35,
+                        transition: 'opacity 0.15s', lineHeight: 1,
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                      onMouseLeave={e => (e.currentTarget.style.opacity = '0.35')}
+                      title="Zeile löschen"
+                    >
+                      🗑
                     </button>
                   </div>
 
@@ -886,8 +899,8 @@ export default function SubtitleEditorPage() {
                       background: 'var(--color-bg-input)',
                       border: '1.5px solid var(--color-border)',
                       borderRadius: 6,
-                      padding: '4px 6px',
-                      fontSize: '0.78rem',
+                      padding: '5px 8px',
+                      fontSize: '0.88rem',
                       fontWeight: 700,
                       color: 'var(--color-accent)',
                       fontFamily: 'monospace',
@@ -917,8 +930,8 @@ export default function SubtitleEditorPage() {
                       background: 'var(--color-bg-input)',
                       border: '1.5px solid var(--color-border)',
                       borderRadius: 6,
-                      padding: '4px 6px',
-                      fontSize: '0.78rem',
+                      padding: '5px 8px',
+                      fontSize: '0.88rem',
                       fontWeight: 700,
                       color: 'var(--color-text-primary)',
                       fontFamily: 'monospace',
@@ -943,8 +956,8 @@ export default function SubtitleEditorPage() {
                       background: 'var(--color-bg-input)',
                       border: '1.5px solid var(--color-border)',
                       borderRadius: 6,
-                      padding: '4px 8px',
-                      fontSize: '0.85rem',
+                      padding: '6px 10px',
+                      fontSize: '0.95rem',
                       fontWeight: 600,
                       color: 'var(--color-text-primary)',
                       width: '100%',
@@ -979,19 +992,6 @@ export default function SubtitleEditorPage() {
                       title="Zeile darunter einfügen"
                     >
                       ➕
-                    </button>
-                    <button
-                      onClick={() => deleteSub(i)}
-                      style={{
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        fontSize: '0.85rem', padding: '2px', opacity: 0.45,
-                        transition: 'opacity 0.15s', lineHeight: 1,
-                      }}
-                      onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-                      onMouseLeave={e => (e.currentTarget.style.opacity = '0.45')}
-                      title="Zeile löschen"
-                    >
-                      🗑
                     </button>
                   </div>
                 </div>

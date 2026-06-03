@@ -797,6 +797,7 @@ export default function LessonPage() {
   // Reset custom subtitles back to original
   const handleResetSubs = useCallback(async () => {
     if (!lesson) return;
+    if (!window.confirm('Eigene Untertitel wirklich zurücksetzen? Alle Änderungen gehen verloren.')) return;
     try {
       const res = await fetch(`/api/user-subtitles?lessonId=${lesson._id}`, { method: 'DELETE' });
       if (res.ok) {

@@ -1180,8 +1180,26 @@ a:hover { color: var(--color-accent-hover); }
 /* ═══ RESPONSIVE ═══ */
 @media (max-width: 900px) {
   .lesson-split { display: block; }
-  .lesson-left { border-right: none; border-bottom: 2.5px solid var(--color-border); }
+  .lesson-left { border-right: none; border-bottom: 2.5px solid var(--color-border); padding: 0.75rem; }
   .lesson-right { overflow-y: auto; border: 2.5px solid var(--color-border); border-radius: 1.5rem; margin: 0.75rem; margin-bottom: 1rem; max-height: 60vh; }
+  .lesson-header { flex-wrap: wrap; gap: 0.5rem; padding: 0.5rem 0.75rem; }
+  .lesson-header-title { display: none; }
+  .lesson-header-meta { gap: 0.4rem; font-size: 0.68rem; flex-wrap: wrap; }
+  .lesson-back-btn { font-size: 0.7rem; padding: 0.25rem 0.5rem; }
+  .lesson-edit-btn, .lesson-reset-btn { font-size: 0.65rem !important; padding: 0.2rem 0.5rem !important; }
+  .lesson-custom-sub-badge { font-size: 0.6rem !important; padding: 0.15rem 0.4rem !important; }
+  .video-wrapper { border-radius: 1rem; border-width: 2px; box-shadow: 3px 3px 0 #15803d; margin-bottom: 0.75rem; }
+  .lesson-progress-section { padding: 0.6rem 0.75rem; margin-bottom: 0.75rem; border-radius: 1rem; }
+  .lesson-progress-header { font-size: 0.7rem; margin-bottom: 0.35rem; }
+  .lesson-progress-track { height: 8px; }
+  .mode-toggle { margin-bottom: 0.75rem; }
+  .mode-label { font-size: 0.65rem; margin-bottom: 0.3rem; }
+  .mode-btn { font-size: 0.7rem; padding: 0.35rem 0.5rem; }
+  .lesson-ctrl-group { gap: 0.4rem; margin-bottom: 0.75rem; }
+  .ctrl-btn { padding: 0.5rem 0.2rem; font-size: 0.65rem; border-radius: 0.75rem; gap: 0.2rem; }
+  .ctrl-btn-icon { font-size: 1rem; }
+  .ctrl-btn-badge { font-size: 0.55rem; padding: 0.08rem 0.3rem; }
+  .lesson-level { font-size: 0.6rem; padding: 0.15rem 0.45rem; }
   .podcast-hero { flex-direction: column; align-items: center; text-align: center; gap: 1rem; }
   .podcast-hero-art { width: 128px; height: 128px; }
   .podcast-hero-badge { align-self: center; }

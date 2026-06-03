@@ -1,5 +1,5 @@
 'use client';
-import { RefObject, useCallback, useState } from 'react';
+import { RefObject, useCallback, useEffect, useRef, useState } from 'react';
 
 interface Subtitle {
   start: number;
@@ -67,8 +67,26 @@ export default function ClozeRow({
   const [explanation, setExplanation] = useState<string | null>(null);
   const [explainError, setExplainError] = useState<string | null>(null);
 
+  // Toast warning state
+  const [showToast, setShowToast] = useState(false);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, []);
+
   const handleExplain = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
+
+    // If sentence not completed, show warning toast
+    if (!isCompleted && !allBlanksCorrect) {
+      setShowToast(true);
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => setShowToast(false), 2000);
+      return;
+    }
 
     // Toggle off if already showing
     if (showExplain && explanation) {
@@ -104,7 +122,7 @@ export default function ClozeRow({
     } finally {
       setExplaining(false);
     }
-  }, [showExplain, explanation, sub.text]);
+  }, [showExplain, explanation, sub.text, isCompleted, allBlanksCorrect]);
 
   // Simple markdown-like rendering for the explanation
   const renderExplanation = (text: string) => {
@@ -335,6 +353,14 @@ export default function ClozeRow({
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Toast warning */}
+      {showToast && (
+        <div className="explain-toast" onClick={(e) => e.stopPropagation()}>
+          <span className="explain-toast-icon">⚠️</span>
+          <span>Hoàn thành câu trước khi xem giải thích!</span>
         </div>
       )}
     </div>

@@ -845,6 +845,28 @@ a:hover { color: var(--color-accent-hover); }
   margin-top: 0;
 }
 
+/* EXPLAIN TOAST WARNING */
+.explain-toast {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.6rem 1rem;
+  border-radius: 0.875rem;
+  background: rgba(251,191,36,0.1);
+  border: 2px solid rgba(251,191,36,0.35);
+  color: #fbbf24;
+  font-size: 0.78rem; font-weight: 800;
+  animation: slideDown 0.25s ease-out, toastFade 2s ease-in-out;
+  box-shadow: 0 2px 12px rgba(251,191,36,0.15);
+}
+.explain-toast-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+@keyframes toastFade {
+  0%, 75% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 /* SHADOWING MODE RIGHT PANEL */
 .lesson-right-shadowing {
   background: linear-gradient(180deg, rgba(251,191,36,0.03) 0%, transparent 20%);

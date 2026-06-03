@@ -1148,6 +1148,35 @@ a:hover { color: var(--color-accent-hover); }
   color: #0a1a0e;
 }
 
+/* Custom sub badge & reset */
+.lesson-custom-sub-badge {
+  display: inline-flex; align-items: center; gap: 0.2rem;
+  padding: 0.2rem 0.55rem; border-radius: 999px;
+  font-size: 0.65rem; font-weight: 900;
+  background: rgba(56,189,248,0.12);
+  color: #38bdf8;
+  border: 1.5px solid rgba(56,189,248,0.35);
+  letter-spacing: 0.03em;
+  animation: pop 0.3s ease;
+}
+.lesson-reset-btn {
+  display: inline-flex; align-items: center; gap: 0.2rem;
+  padding: 0.25rem 0.6rem; border-radius: 999px;
+  font-size: 0.68rem; font-weight: 900;
+  background: rgba(248,113,113,0.1);
+  color: var(--color-error);
+  border: 1.5px solid rgba(248,113,113,0.3);
+  cursor: pointer;
+  font-family: var(--font-family-sans);
+  transition: all 0.15s;
+}
+.lesson-reset-btn:hover {
+  background: rgba(248,113,113,0.2);
+  border-color: var(--color-error);
+  transform: translate(-1px,-1px);
+  box-shadow: 2px 2px 0 rgba(185,28,28,0.4);
+}
+
 /* ═══ RESPONSIVE ═══ */
 @media (max-width: 900px) {
   .lesson-split { display: block; }

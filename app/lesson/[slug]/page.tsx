@@ -85,6 +85,8 @@ export default function LessonPage() {
   const [editMode, setEditMode] = useState(false);
 
   const [lesson, setLesson] = useState<LessonData | null>(null);
+  const [hasCustomSubs, setHasCustomSubs] = useState(false);
+  const originalSubtitlesRef = useRef<Subtitle[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [blankInputs, setBlankInputs] = useState<Record<number, Record<number, string>>>({});
   const [blankResults, setBlankResults] = useState<Record<number, Record<number, 'correct' | 'incorrect'>>>({});
@@ -140,13 +142,28 @@ export default function LessonPage() {
     setBlankResults({});
   }, [blankMode]);
 
-  // Load lesson + progress
+  // Load lesson + progress + custom subs
   useEffect(() => {
     if (status === 'unauthenticated') { router.push('/login'); return; }
     if (status !== 'authenticated') return;
 
-    fetch(`/api/lessons/${slug}`).then(r => r.json()).then(lessonData => {
+    fetch(`/api/lessons/${slug}`).then(r => r.json()).then(async (lessonData) => {
       if (lessonData.error) { setLoading(false); return; }
+      // Store original subtitles for reset
+      originalSubtitlesRef.current = JSON.parse(JSON.stringify(lessonData.subtitles));
+
+      // Check for user custom subtitles
+      try {
+        const customRes = await fetch(`/api/user-subtitles?lessonId=${lessonData._id}`);
+        const customData = await customRes.json();
+        if (customData.exists && Array.isArray(customData.subtitles)) {
+          lessonData.subtitles = customData.subtitles;
+          setHasCustomSubs(true);
+        }
+      } catch (err) {
+        console.error('[LOAD] Error loading custom subs:', err);
+      }
+
       setLesson(lessonData);
       fetch(`/api/progress?lessonId=${lessonData._id}`).then(r => r.json()).then(progressData => {
         console.log('[LOAD] progressData:', progressData);
@@ -764,14 +781,26 @@ export default function LessonPage() {
     setEditSaving(true);
     setEditSaveMsg('');
     try {
-      const res = await fetch(`/api/lessons/${lesson._id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subtitles: editSubtitles }),
-      });
+      let res: Response;
+      if (isAdmin) {
+        // Admin saves to the lesson (base subtitles)
+        res = await fetch(`/api/lessons/${lesson._id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subtitles: editSubtitles }),
+        });
+      } else {
+        // Regular user saves to personal custom subtitles
+        res = await fetch('/api/user-subtitles', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lessonId: lesson._id, subtitles: editSubtitles }),
+        });
+      }
       if (res.ok) {
         setEditSaveMsg('✅ Gespeichert!');
         setLesson(prev => prev ? { ...prev, subtitles: JSON.parse(JSON.stringify(editSubtitles)) } : prev);
+        if (!isAdmin) setHasCustomSubs(true);
         setTimeout(() => setEditSaveMsg(''), 3000);
       } else {
         setEditSaveMsg('❌ Fehler');
@@ -780,7 +809,23 @@ export default function LessonPage() {
       setEditSaveMsg('❌ Fehler');
     }
     setEditSaving(false);
-  }, [lesson, editSubtitles]);
+  }, [lesson, editSubtitles, isAdmin]);
+
+  // Reset custom subtitles back to original
+  const handleResetSubs = useCallback(async () => {
+    if (!lesson) return;
+    try {
+      const res = await fetch(`/api/user-subtitles?lessonId=${lesson._id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setLesson(prev => prev ? { ...prev, subtitles: JSON.parse(JSON.stringify(originalSubtitlesRef.current)) } : prev);
+        setHasCustomSubs(false);
+        setEditMode(false);
+        setEditSaveMsg('');
+      }
+    } catch (err) {
+      console.error('Error resetting subs:', err);
+    }
+  }, [lesson]);
 
   if (status === 'loading' || loading) {
     return <div className="loading"><div className="spinner" /></div>;
@@ -803,13 +848,23 @@ export default function LessonPage() {
         <button className="lesson-back-btn" onClick={() => router.push('/')}>← Zurück</button>
         <h1 className="lesson-header-title">{lesson.title}</h1>
         <div className="lesson-header-meta">
-          {isAdmin && (
+          <button
+            className={`lesson-edit-btn ${editMode ? 'lesson-edit-btn-active' : ''}`}
+            onClick={() => editMode ? exitEditMode() : enterEditMode()}
+            title={editMode ? 'Editor schließen' : 'Untertitel bearbeiten'}
+          >
+            ✏️ {editMode ? 'Schließen' : 'Edit'}
+          </button>
+          {hasCustomSubs && !editMode && (
+            <span className="lesson-custom-sub-badge" title="Du verwendest eigene Untertitel">📝 Meine Sub</span>
+          )}
+          {hasCustomSubs && (
             <button
-              className={`lesson-edit-btn ${editMode ? 'lesson-edit-btn-active' : ''}`}
-              onClick={() => editMode ? exitEditMode() : enterEditMode()}
-              title={editMode ? 'Editor schließen' : 'Untertitel bearbeiten'}
+              className="lesson-reset-btn"
+              onClick={handleResetSubs}
+              title="Eigene Untertitel löschen und zurück zum Original"
             >
-              ✏️ {editMode ? 'Schließen' : 'Edit'}
+              🔄 Reset
             </button>
           )}
           <span className="lesson-level">{lesson.level}</span>

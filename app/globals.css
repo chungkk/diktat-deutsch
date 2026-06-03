@@ -1074,7 +1074,7 @@ a:hover { color: var(--color-accent-hover); }
   box-shadow: 4px 4px 0 rgba(180,83,9,0.3) !important;
 }
 .sub-edit-time-group {
-  display: flex; gap: 4px; align-items: center; margin-left: auto;
+  display: flex; gap: 4px; align-items: center;
 }
 .sub-edit-time-input {
   width: 60px; padding: 3px 5px;

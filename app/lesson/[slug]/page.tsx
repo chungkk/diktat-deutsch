@@ -934,12 +934,12 @@ export default function LessonPage() {
             <>
               {/* Edit toolbar */}
               <div className="sub-edit-toolbar">
-                {editSelectedSubs.size >= 2 && (
+                {isAdmin && editSelectedSubs.size >= 2 && (
                   <button className="btn btn-sm" style={{ background: 'linear-gradient(135deg, #f59e0b, #ef4444)', border: '2px solid #b45309', boxShadow: '2px 2px 0 #b45309', color: '#fff', fontWeight: 900, fontSize: '0.72rem' }} onClick={mergeEditSubs}>
                     🔗 Gộp {editSelectedSubs.size} dòng
                   </button>
                 )}
-                {editSelectedSubs.size > 0 && (
+                {isAdmin && editSelectedSubs.size > 0 && (
                   <button className="btn btn-secondary btn-sm" style={{ fontSize: '0.68rem', opacity: 0.7 }} onClick={() => setEditSelectedSubs(new Set())}>✕ Bỏ chọn</button>
                 )}
                 <div style={{ flex: 1 }} />
@@ -972,12 +972,14 @@ export default function LessonPage() {
                   className={`sub-row sub-edit-row ${editSelectedSubs.has(i) ? 'sub-edit-selected' : ''}`}
                 >
                   <div className="sub-row-header">
-                    <input
-                      type="checkbox"
-                      checked={editSelectedSubs.has(i)}
-                      onChange={() => toggleEditSelect(i)}
-                      style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#f59e0b', flexShrink: 0 }}
-                    />
+                    {isAdmin && (
+                      <input
+                        type="checkbox"
+                        checked={editSelectedSubs.has(i)}
+                        onChange={() => toggleEditSelect(i)}
+                        style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#f59e0b', flexShrink: 0 }}
+                      />
+                    )}
                     <span className="sub-number">{i + 1}</span>
                     {editEditedSubs.has(i) && (
                       <span
@@ -997,26 +999,28 @@ export default function LessonPage() {
                       </span>
                     )}
                     <button className="sub-play-btn" onClick={(e) => { e.stopPropagation(); seekToSub(sub, autoStop); }} title="Abspielen">🔊</button>
-                    <div className="sub-edit-time-group">
-                      <input
-                        type="number" step="0.1" min="0"
-                        value={parseFloat(sub.start.toFixed(1))}
-                        onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0) { updateEditSub(i, 'start', parseFloat(v.toFixed(2))); setEditEditedSubs(prev => new Set(prev).add(i)); seekToSub({ ...sub, start: parseFloat(v.toFixed(2)) }, autoStop); } }}
-                        className="sub-edit-time-input"
-                        title="Start (s)"
-                      />
-                      <input
-                        type="number" step="0.1" min="0.1"
-                        value={parseFloat(sub.dur.toFixed(1))}
-                        onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v > 0) { updateEditSub(i, 'dur', parseFloat(v.toFixed(2))); setEditEditedSubs(prev => new Set(prev).add(i)); seekToSub({ ...sub, dur: parseFloat(v.toFixed(2)) }, autoStop); } }}
-                        className="sub-edit-time-input"
-                        title="Dauer (s)"
-                      />
-                    </div>
+                    {isAdmin && (
+                      <div className="sub-edit-time-group">
+                        <input
+                          type="number" step="0.1" min="0"
+                          value={parseFloat(sub.start.toFixed(1))}
+                          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0) { updateEditSub(i, 'start', parseFloat(v.toFixed(2))); setEditEditedSubs(prev => new Set(prev).add(i)); seekToSub({ ...sub, start: parseFloat(v.toFixed(2)) }, autoStop); } }}
+                          className="sub-edit-time-input"
+                          title="Start (s)"
+                        />
+                        <input
+                          type="number" step="0.1" min="0.1"
+                          value={parseFloat(sub.dur.toFixed(1))}
+                          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v > 0) { updateEditSub(i, 'dur', parseFloat(v.toFixed(2))); setEditEditedSubs(prev => new Set(prev).add(i)); seekToSub({ ...sub, dur: parseFloat(v.toFixed(2)) }, autoStop); } }}
+                          className="sub-edit-time-input"
+                          title="Dauer (s)"
+                        />
+                      </div>
+                    )}
                     <span className="sub-time">{formatTime(sub.start)}</span>
                     <div className="sub-edit-actions">
-                      <button onClick={() => splitEditSub(i)} className="sub-edit-action-btn" title="Split (✂️)">✂️</button>
-                      <button onClick={() => insertEditSubAfter(i)} className="sub-edit-action-btn" title="Einfügen (➕)">➕</button>
+                      {isAdmin && <button onClick={() => splitEditSub(i)} className="sub-edit-action-btn" title="Split (✂️)">✂️</button>}
+                      {isAdmin && <button onClick={() => insertEditSubAfter(i)} className="sub-edit-action-btn" title="Einfügen (➕)">➕</button>}
                       <button onClick={() => deleteEditSub(i)} className="sub-edit-action-btn" title="Löschen (🗑)">🗑</button>
                     </div>
                   </div>
@@ -1026,7 +1030,7 @@ export default function LessonPage() {
                       ref={el => { if (el) editTextRefs.current.set(i, el); else editTextRefs.current.delete(i); }}
                       value={sub.text}
                       onChange={e => updateEditSub(i, 'text', e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); splitEditSub(i); } }}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (isAdmin) splitEditSub(i); } }}
                       className="sub-edit-text-input"
                       placeholder="Untertiteltext..."
                     />

@@ -38,9 +38,6 @@ export default function Navbar() {
               <Link href="/">
                 <span className="nav-icon">📖</span> Lektionen
               </Link>
-              <Link href="/podcast">
-                <span className="nav-icon">🎧</span> Podcast
-              </Link>
 
               <div className="navbar-dropdown">
                 <span className="navbar-user">

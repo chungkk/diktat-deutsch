@@ -1,7 +1,7 @@
 {
   "name": "diktat-deutsch-mobile",
   "version": "1.0.0",
-  "main": "App.tsx",
+  "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
     "ios": "expo run:ios",

@@ -6,6 +6,7 @@ export interface IProgress extends Document {
   currentIndex: number;
   completedIndices: number[];
   bookmarkedIndices: number[];
+  correctInputs: Record<string, Record<string, string>>;
   score: number;
   totalAttempts: number;
   lastAccessedAt: Date;
@@ -40,6 +41,10 @@ const ProgressSchema: Schema = new Schema({
   totalAttempts: {
     type: Number,
     default: 0,
+  },
+  correctInputs: {
+    type: Schema.Types.Mixed,
+    default: {},
   },
   lastAccessedAt: {
     type: Date,

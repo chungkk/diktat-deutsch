@@ -113,6 +113,8 @@ export default function LessonPage() {
   const autoPauseFallback = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Always-fresh ref for completedIndices to prevent HTTP race conditions
   const completedIndicesRef = useRef<number[]>([]);
+  // Track correct word inputs for persistence
+  const correctInputsRef = useRef<Record<string, Record<string, string>>>({});
 
   // YouTube iframe refs
   const ytIframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -165,6 +167,26 @@ export default function LessonPage() {
         }
         if (Array.isArray(progressData?.bookmarkedIndices)) {
           setBookmarkedIndices(new Set(progressData.bookmarkedIndices));
+        }
+        // Restore per-word correct inputs
+        if (progressData?.correctInputs && typeof progressData.correctInputs === 'object') {
+          correctInputsRef.current = progressData.correctInputs;
+          const restoredInputs: Record<number, Record<number, string>> = {};
+          const restoredResults: Record<number, Record<number, 'correct' | 'incorrect'>> = {};
+          for (const [subIdxStr, wordMap] of Object.entries(progressData.correctInputs)) {
+            const subIdx = Number(subIdxStr);
+            if (isNaN(subIdx)) continue;
+            restoredInputs[subIdx] = {};
+            restoredResults[subIdx] = {};
+            for (const [wordIdxStr, val] of Object.entries(wordMap as Record<string, string>)) {
+              const wordIdx = Number(wordIdxStr);
+              if (isNaN(wordIdx)) continue;
+              restoredInputs[subIdx][wordIdx] = val;
+              restoredResults[subIdx][wordIdx] = 'correct';
+            }
+          }
+          setBlankInputs(restoredInputs);
+          setBlankResults(restoredResults);
         }
         if (progressData?.score) setScore(progressData.score);
         if (progressData?.totalAttempts) setTotalAttempts(progressData.totalAttempts);
@@ -240,6 +262,7 @@ export default function LessonPage() {
         ? Math.max(...completedIndicesRef.current)
         : 0,
       completedIndices: completed,
+      correctInputs: correctInputsRef.current,
       score: sc,
       totalAttempts: attempts,
       isCompleted: completed.length >= lesson.subtitles.length,
@@ -508,12 +531,18 @@ export default function LessonPage() {
     });
 
     if (result === 'correct') {
+      // Persist this correct word immediately
+      if (!correctInputsRef.current[subIdx]) correctInputsRef.current[subIdx] = {};
+      correctInputsRef.current[subIdx][wordIdx] = value;
+
       const sortedBlanks = Array.from(blanks).sort((a, b) => a - b);
       const currentPos = sortedBlanks.indexOf(wordIdx);
       const allInputs = { ...(blankInputs[subIdx] || {}), [wordIdx]: value };
       const allCorrect = sortedBlanks.every(wi => norm(allInputs[wi] || '') === norm(words[wi]));
 
       if (allCorrect) {
+        // Sentence fully completed — clean up correctInputs for this sub
+        delete correctInputsRef.current[subIdx];
         const newAttempts = totalAttempts + 1;
         setTotalAttempts(newAttempts);
         let newScore = score;
@@ -547,6 +576,10 @@ export default function LessonPage() {
         setTimeout(() => {
           blankRefs.current[`${subIdx}-${sortedBlanks[currentPos + 1]}`]?.focus();
         }, 50);
+      }
+      // Save partial correct input (debounced via setTimeout to batch rapid typing)
+      if (!allCorrect) {
+        saveProgress(completedIndicesRef.current, score, totalAttempts);
       }
     }
   };

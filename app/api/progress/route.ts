@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 
     if (lessonId) {
       const progress = await Progress.findOne({ userId, lessonId });
-      return NextResponse.json(progress || { currentIndex: 0, completedIndices: [], bookmarkedIndices: [], score: 0, totalAttempts: 0 });
+      return NextResponse.json(progress || { currentIndex: 0, completedIndices: [], bookmarkedIndices: [], correctInputs: {}, score: 0, totalAttempts: 0 });
     }
 
     // Get all progress for user
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Nicht angemeldet' }, { status: 401 });
     }
 
-    const { lessonId, currentIndex, completedIndices, bookmarkedIndices, score, totalAttempts, isCompleted } = await req.json();
+    const { lessonId, currentIndex, completedIndices, bookmarkedIndices, correctInputs, score, totalAttempts, isCompleted } = await req.json();
     const userId = (session.user as { id?: string })?.id;
 
     // Validate required fields
@@ -64,6 +64,9 @@ export async function POST(req: NextRequest) {
     };
     if (Array.isArray(bookmarkedIndices)) {
       updateData.bookmarkedIndices = bookmarkedIndices;
+    }
+    if (correctInputs && typeof correctInputs === 'object') {
+      updateData.correctInputs = correctInputs;
     }
 
     const progress = await Progress.findOneAndUpdate(

@@ -1,5 +1,5 @@
 'use client';
-import { RefObject, useCallback } from 'react';
+import { RefObject, useCallback, useState } from 'react';
 
 interface Subtitle {
   start: number;
@@ -60,6 +60,75 @@ export default function ClozeRow({
   const { words, blanks } = tokens;
   const allBlanksCorrect =
     blanks.size > 0 && Array.from(blanks).every((wi) => subResults[wi] === 'correct');
+
+  // Explain state
+  const [showExplain, setShowExplain] = useState(false);
+  const [explaining, setExplaining] = useState(false);
+  const [explanation, setExplanation] = useState<string | null>(null);
+  const [explainError, setExplainError] = useState<string | null>(null);
+
+  const handleExplain = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    // Toggle off if already showing
+    if (showExplain && explanation) {
+      setShowExplain(false);
+      return;
+    }
+
+    // If we already have an explanation, just show it
+    if (explanation) {
+      setShowExplain(true);
+      return;
+    }
+
+    setShowExplain(true);
+    setExplaining(true);
+    setExplainError(null);
+
+    try {
+      const res = await fetch('/api/explain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sentence: sub.text }),
+      });
+
+      if (!res.ok) {
+        throw new Error('API error');
+      }
+
+      const data = await res.json();
+      setExplanation(data.explanation);
+    } catch {
+      setExplainError('Không thể giải thích. Thử lại sau.');
+    } finally {
+      setExplaining(false);
+    }
+  }, [showExplain, explanation, sub.text]);
+
+  // Simple markdown-like rendering for the explanation
+  const renderExplanation = (text: string) => {
+    const lines = text.split('\n');
+    return lines.map((line, i) => {
+      // Bold text
+      const boldRendered = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      
+      // Check if this is a section header (starts with emoji)
+      const isHeader = /^[🌐📝🔍🎨]/.test(line.trim());
+      
+      if (line.trim() === '') {
+        return <div key={i} className="explain-line-break" />;
+      }
+      
+      return (
+        <div
+          key={i}
+          className={`explain-line ${isHeader ? 'explain-section-header' : ''}`}
+          dangerouslySetInnerHTML={{ __html: boldRendered }}
+        />
+      );
+    });
+  };
 
   const renderWords = () => {
     if (isCompleted) {
@@ -214,6 +283,13 @@ export default function ClozeRow({
         )}
         {isCompleted && <span className="sub-check">✓</span>}
         <button
+          className={`sub-explain-btn ${showExplain ? 'sub-explain-btn-active' : ''}`}
+          onClick={handleExplain}
+          title="Giải thích câu này"
+        >
+          💡
+        </button>
+        <button
           className={`sub-bookmark-btn ${isBookmarked ? 'sub-bookmark-btn-active' : ''}`}
           onClick={(e) => {
             e.stopPropagation();
@@ -225,6 +301,42 @@ export default function ClozeRow({
         </button>
       </div>
       <div className="sub-cloze">{renderWords()}</div>
+
+      {/* Explanation panel */}
+      {showExplain && (
+        <div className="explain-panel" onClick={(e) => e.stopPropagation()}>
+          <div className="explain-panel-header">
+            <span className="explain-panel-title">💡 Giải thích</span>
+            <button
+              className="explain-panel-close"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowExplain(false);
+              }}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="explain-panel-body">
+            {explaining && (
+              <div className="explain-loading">
+                <span className="explain-loading-icon">🧠</span>
+                <span className="explain-loading-text">Đang phân tích...</span>
+              </div>
+            )}
+            {explainError && (
+              <div className="explain-error">
+                <span>❌</span> {explainError}
+              </div>
+            )}
+            {explanation && !explaining && (
+              <div className="explain-content">
+                {renderExplanation(explanation)}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

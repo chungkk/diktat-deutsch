@@ -111,7 +111,7 @@ export default function HomePage() {
   const [lessonsReady, setLessonsReady] = useState(false);
   const [progressReady, setProgressReady] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const LESSONS_PER_PAGE = 6;
+  const LESSONS_PER_PAGE = 8;
   const router = useRouter();
   const fetchIdRef = useRef(0);
 

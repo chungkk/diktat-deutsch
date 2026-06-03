@@ -48,6 +48,9 @@ export default function LessonScreen({ navigation, route }: any) {
   const completedRef = useRef<number[]>([]);
   const scrollRef = useRef<ScrollView>(null);
   const playerRef = useRef<any>(null);
+  const lastTapRef = useRef<Record<string, number>>({});
+  const rowYRef = useRef<Record<number, number>>({});
+  const currentIndexRef = useRef(0);
 
   const subTokens = useMemo(() => {
     return lesson.subtitles.map((sub, i) => {
@@ -88,6 +91,20 @@ export default function LessonScreen({ navigation, route }: any) {
     }
   }, [lesson._id, lesson.subtitles.length]);
 
+  const scrollToRow = useCallback((index: number) => {
+    const y = rowYRef.current[index];
+    if (y !== undefined && scrollRef.current) {
+      scrollRef.current.scrollTo({ y: Math.max(0, y - 80), animated: true });
+    }
+  }, []);
+
+  const setActiveIndex = useCallback((index: number) => {
+    if (index === currentIndexRef.current) return;
+    currentIndexRef.current = index;
+    setCurrentIndex(index);
+    scrollToRow(index);
+  }, [scrollToRow]);
+
   const seekToSub = useCallback((index: number) => {
     if (!lesson.subtitles[index] || lesson.videoType !== 'youtube') return;
     const sub = lesson.subtitles[index];
@@ -97,9 +114,28 @@ export default function LessonScreen({ navigation, route }: any) {
   }, [lesson]);
 
   const selectSubtitle = useCallback((index: number) => {
-    setCurrentIndex(index);
+    setActiveIndex(index);
     seekToSub(index);
-  }, [seekToSub]);
+  }, [seekToSub, setActiveIndex]);
+
+  // Poll YouTube time and sync active subtitle
+  useEffect(() => {
+    if (!playing || lesson.videoType !== 'youtube') return;
+    const subs = lesson.subtitles;
+    const interval = setInterval(async () => {
+      try {
+        const t = await playerRef.current?.getCurrentTime();
+        if (t == null) return;
+        for (let i = subs.length - 1; i >= 0; i--) {
+          if (t >= subs[i].start - 0.15) {
+            setActiveIndex(i);
+            break;
+          }
+        }
+      } catch {}
+    }, 200);
+    return () => clearInterval(interval);
+  }, [playing, lesson, setActiveIndex]);
 
   const handleBlankChange = (subIdx: number, wordIdx: number, value: string) => {
     setBlankInputs(prev => ({ ...prev, [subIdx]: { ...(prev[subIdx] || {}), [wordIdx]: value } }));
@@ -145,7 +181,7 @@ export default function LessonScreen({ navigation, route }: any) {
 
         if (subIdx < lesson.subtitles.length - 1) {
           setTimeout(() => {
-            setCurrentIndex(subIdx + 1);
+            setActiveIndex(subIdx + 1);
             seekToSub(subIdx + 1);
           }, 600);
         }
@@ -176,7 +212,7 @@ export default function LessonScreen({ navigation, route }: any) {
       setTotalAttempts(newAttempts);
       saveProgress(newCompleted, score, newAttempts);
       if (subIdx < lesson.subtitles.length - 1) {
-        setTimeout(() => { setCurrentIndex(subIdx + 1); seekToSub(subIdx + 1); }, 600);
+        setTimeout(() => { setActiveIndex(subIdx + 1); seekToSub(subIdx + 1); }, 600);
       }
     }
   };
@@ -231,6 +267,7 @@ export default function LessonScreen({ navigation, route }: any) {
               style={[s.subRow, isActive && s.subRowActive, isCompleted && s.subRowCompleted]}
               onPress={() => selectSubtitle(i)}
               activeOpacity={0.7}
+              onLayout={(e) => { rowYRef.current[i] = e.nativeEvent.layout.y; }}
             >
               <View style={s.subHeader}>
                 <Text style={s.subNumber}>{i + 1}</Text>
@@ -259,9 +296,23 @@ export default function LessonScreen({ navigation, route }: any) {
                   }
 
                   const inputWidth = Math.max(60, bareWord(word).length * 11 + 20);
+                  const tapKey = `${i}-${wi}`;
 
                   return (
-                    <View key={wi} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <TouchableOpacity
+                      key={wi}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        const now = Date.now();
+                        const last = lastTapRef.current[tapKey] || 0;
+                        if (now - last < 400) {
+                          revealWord(i, wi);
+                          lastTapRef.current[tapKey] = 0;
+                        } else {
+                          lastTapRef.current[tapKey] = now;
+                        }
+                      }}
+                    >
                       <TextInput
                         style={[
                           s.blankInput,
@@ -274,10 +325,7 @@ export default function LessonScreen({ navigation, route }: any) {
                         autoCorrect={false}
                         spellCheck={false}
                       />
-                      <TouchableOpacity onPress={() => revealWord(i, wi)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                        <Text style={s.hintBtn}>👁</Text>
-                      </TouchableOpacity>
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
               </View>
@@ -321,5 +369,4 @@ const s = StyleSheet.create({
     minHeight: 32,
   },
   blankIncorrect: { borderColor: colors.error, backgroundColor: 'rgba(239,68,68,0.1)' },
-  hintBtn: { fontSize: 14, marginLeft: 2, marginRight: 4 },
 });

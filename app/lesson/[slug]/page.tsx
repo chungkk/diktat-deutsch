@@ -425,15 +425,21 @@ export default function LessonPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [togglePlay, seekBy, seekToSubtitle, currentIndex, lesson, selectSubtitle, cycleVideoBlur, shadowingMode, bookmarkedIndices]);
 
+  // Scroll a subtitle element to center of its scroll container
+  const scrollSubIntoView = useCallback((el: HTMLElement) => {
+    const container = subtitleListRef.current;
+    if (!el || !container) return;
+    const elRect = el.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const offset = elRect.top - containerRect.top - (container.clientHeight / 2) + (el.offsetHeight / 2);
+    container.scrollBy({ top: offset, behavior: 'smooth' });
+  }, []);
+
   // Scroll active subtitle into view
   useEffect(() => {
     const el = document.getElementById(`sub-${currentIndex}`);
-    const container = subtitleListRef.current;
-    if (el && container) {
-      const scrollTo = el.offsetTop - (container.clientHeight / 2) + (el.offsetHeight / 2);
-      container.scrollTo({ top: scrollTo, behavior: 'smooth' });
-    }
-  }, [currentIndex]);
+    if (el) scrollSubIntoView(el);
+  }, [currentIndex, scrollSubIntoView]);
 
   // Sync currentIndex with video playback time + auto-stop at subtitle end
   useEffect(() => {
@@ -467,18 +473,14 @@ export default function LessonPage() {
             setCurrentIndex(i);
             // Auto-scroll to it
             const el = document.getElementById(`sub-${i}`);
-            const container = subtitleListRef.current;
-            if (el && container) {
-              const scrollTo = el.offsetTop - (container.clientHeight / 2) + (el.offsetHeight / 2);
-              container.scrollTo({ top: scrollTo, behavior: 'smooth' });
-            }
+            if (el) scrollSubIntoView(el);
           }
           break;
         }
       }
     }, 150);
     return () => clearInterval(interval);
-  }, [lesson, isPlaying, currentIndex, autoStop, ytCommand]);
+  }, [lesson, isPlaying, currentIndex, autoStop, ytCommand, scrollSubIntoView]);
 
   // Normalize for comparison
   const norm = (s: string) => s.toLowerCase().replace(/[.,!?;:'"„"»«]/g, '').trim();

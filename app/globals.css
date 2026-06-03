@@ -472,24 +472,22 @@ a:hover { color: var(--color-accent-hover); }
 /* LESSON PAGE */
 .lesson-page { display: flex; flex-direction: column; height: 100vh; }
 .lesson-header {
-  display: flex; align-items: center; gap: 1rem;
-  padding: 0.6rem 1.25rem;
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
   background: var(--color-bg-card);
-  border-bottom: 2.5px solid var(--color-accent);
+  border-bottom: 2px solid var(--color-accent);
   flex-shrink: 0;
-  box-shadow: 0 3px 0 rgba(34,197,94,0.15);
+  flex-wrap: wrap;
 }
 .lesson-back-btn {
-  font-size: 0.78rem; color: var(--color-text-secondary); font-weight: 800;
-  padding: 0.3rem 0.75rem; border-radius: 999px;
-  border: 2px solid var(--color-border);
+  font-size: 0.72rem; color: var(--color-text-secondary); font-weight: 800;
+  padding: 0.2rem 0.5rem; border-radius: 999px;
+  border: 1.5px solid var(--color-border);
   background: var(--color-bg-input); cursor: pointer;
   font-family: var(--font-family-sans); transition: all 0.15s;
-  box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
 }
-.lesson-back-btn:hover { border-color: var(--color-accent); color: var(--color-accent); transform: translate(-1px,-1px); box-shadow: 3px 3px 0 #15803d; }
-.lesson-header-title { font-size: 0.9rem; font-weight: 900; flex: 1; truncate: true; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lesson-header-meta { display: flex; align-items: center; gap: 0.75rem; color: var(--color-text-secondary); font-size: 0.78rem; font-weight: 700; }
+.lesson-back-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+.lesson-header-stat { color: var(--color-text-secondary); font-size: 0.7rem; font-weight: 700; }
 
 /* PROGRESS SECTION */
 .lesson-progress-section {
@@ -1120,9 +1118,9 @@ a:hover { color: var(--color-accent-hover); }
 
 /* Admin edit button in lesson header */
 .lesson-edit-btn {
-  display: inline-flex; align-items: center; gap: 0.3rem;
-  padding: 0.3rem 0.7rem; border-radius: 999px;
-  font-size: 0.72rem; font-weight: 900;
+  display: inline-flex; align-items: center; gap: 0.2rem;
+  padding: 0.2rem 0.55rem; border-radius: 999px;
+  font-size: 0.65rem; font-weight: 900;
   background: rgba(245,158,11,0.12);
   color: #f59e0b;
   border: 2px solid rgba(245,158,11,0.35);
@@ -1150,9 +1148,9 @@ a:hover { color: var(--color-accent-hover); }
 
 /* Custom sub badge & reset */
 .lesson-custom-sub-badge {
-  display: inline-flex; align-items: center; gap: 0.2rem;
-  padding: 0.2rem 0.55rem; border-radius: 999px;
-  font-size: 0.65rem; font-weight: 900;
+  display: inline-flex; align-items: center; gap: 0.15rem;
+  padding: 0.15rem 0.45rem; border-radius: 999px;
+  font-size: 0.6rem; font-weight: 900;
   background: rgba(56,189,248,0.12);
   color: #38bdf8;
   border: 1.5px solid rgba(56,189,248,0.35);
@@ -1160,9 +1158,9 @@ a:hover { color: var(--color-accent-hover); }
   animation: pop 0.3s ease;
 }
 .lesson-reset-btn {
-  display: inline-flex; align-items: center; gap: 0.2rem;
-  padding: 0.25rem 0.6rem; border-radius: 999px;
-  font-size: 0.68rem; font-weight: 900;
+  display: inline-flex; align-items: center; gap: 0.15rem;
+  padding: 0.15rem 0.5rem; border-radius: 999px;
+  font-size: 0.62rem; font-weight: 900;
   background: rgba(248,113,113,0.1);
   color: var(--color-error);
   border: 1.5px solid rgba(248,113,113,0.3);
@@ -1182,10 +1180,9 @@ a:hover { color: var(--color-accent-hover); }
   .lesson-split { display: block; }
   .lesson-left { border-right: none; border-bottom: 2.5px solid var(--color-border); padding: 0.75rem; }
   .lesson-right { overflow-y: auto; border: 2.5px solid var(--color-border); border-radius: 1.5rem; margin: 0.75rem; margin-bottom: 1rem; max-height: 60vh; }
-  .lesson-header { flex-wrap: wrap; gap: 0.5rem; padding: 0.5rem 0.75rem; }
-  .lesson-header-title { display: none; }
-  .lesson-header-meta { gap: 0.4rem; font-size: 0.68rem; flex-wrap: wrap; }
-  .lesson-back-btn { font-size: 0.7rem; padding: 0.25rem 0.5rem; }
+  .lesson-header { gap: 0.35rem; padding: 0.3rem 0.5rem; }
+  .lesson-back-btn { font-size: 0.65rem; padding: 0.15rem 0.4rem; }
+  .lesson-header-stat { font-size: 0.6rem; }
   .lesson-edit-btn, .lesson-reset-btn { font-size: 0.65rem !important; padding: 0.2rem 0.5rem !important; }
   .lesson-custom-sub-badge { font-size: 0.6rem !important; padding: 0.15rem 0.4rem !important; }
   .video-wrapper { border-radius: 1rem; border-width: 2px; box-shadow: 3px 3px 0 #15803d; margin-bottom: 0.75rem; }

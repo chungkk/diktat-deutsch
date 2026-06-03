@@ -35,6 +35,8 @@ export default function AdminPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [selectedLessons, setSelectedLessons] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [perPage, setPerPage] = useState(10);
 
   // Form state
   const [title, setTitle] = useState('');
@@ -693,7 +695,13 @@ export default function AdminPage() {
               </tr>
             </thead>
             <tbody>
-              {lessons.map((lesson, idx) => (
+              {(() => {
+                const totalPages = Math.ceil(lessons.length / perPage);
+                const startIdx = (currentPage - 1) * perPage;
+                const paginated = lessons.slice(startIdx, startIdx + perPage);
+                return paginated.map((lesson, pageIdx) => {
+                  const idx = startIdx + pageIdx;
+                  return (
                 <tr
                   key={lesson._id}
                   style={{
@@ -710,7 +718,31 @@ export default function AdminPage() {
                     />
                   </td>
                   <td style={{ fontWeight: 900, color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>{idx + 1}</td>
-                  <td style={{ fontWeight: 500 }}>{lesson.title}</td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <div style={{
+                        width: 80, height: 45, borderRadius: '0.5rem', overflow: 'hidden',
+                        flexShrink: 0, background: '#111', border: '2px solid var(--color-border)',
+                        boxShadow: '2px 2px 0 rgba(0,0,0,0.3)',
+                      }}>
+                        {(lesson.thumbnail || lesson.youtubeId) ? (
+                          <img
+                            src={lesson.thumbnail || `https://img.youtube.com/vi/${lesson.youtubeId}/mqdefault.jpg`}
+                            alt={lesson.title}
+                            loading="lazy"
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                          />
+                        ) : (
+                          <div style={{
+                            width: '100%', height: '100%',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '1.2rem', background: 'rgba(34,197,94,0.08)',
+                          }}>🎬</div>
+                        )}
+                      </div>
+                      <span style={{ fontWeight: 500 }}>{lesson.title}</span>
+                    </div>
+                  </td>
                   <td><span className="lesson-level">{lesson.level}</span></td>
                   <td>{lesson.videoType === 'youtube' ? '▶ YT' : '📁'}</td>
                   <td>{lesson.subtitles?.length || 0}</td>
@@ -754,9 +786,102 @@ export default function AdminPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                  );
+                });
+              })()}
             </tbody>
           </table>
+
+          {/* Pagination */}
+          {lessons.length > perPage && (() => {
+            const totalPages = Math.ceil(lessons.length / perPage);
+            const maxVisible = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+            if (endPage - startPage + 1 < maxVisible) {
+              startPage = Math.max(1, endPage - maxVisible + 1);
+            }
+            const pages = [];
+            for (let p = startPage; p <= endPage; p++) pages.push(p);
+
+            return (
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '0.75rem 1rem',
+                borderTop: '2px solid var(--color-border)',
+                background: 'rgba(0,0,0,0.15)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.78rem', fontWeight: 800, color: 'var(--color-text-muted)' }}>
+                  <span>Zeige</span>
+                  <select
+                    className="form-select"
+                    value={perPage}
+                    onChange={e => { setPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                    style={{ width: 60, padding: '0.2rem 0.3rem', fontSize: '0.78rem', fontWeight: 900 }}
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                  <span>von {lessons.length}</span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', minWidth: 0 }}
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >←</button>
+
+                  {startPage > 1 && (
+                    <>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '0.2rem 0.45rem', fontSize: '0.75rem', minWidth: 0 }}
+                        onClick={() => setCurrentPage(1)}
+                      >1</button>
+                      {startPage > 2 && <span style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>…</span>}
+                    </>
+                  )}
+
+                  {pages.map(p => (
+                    <button
+                      key={p}
+                      className="btn btn-sm"
+                      style={{
+                        padding: '0.2rem 0.45rem', fontSize: '0.75rem', minWidth: 0,
+                        background: p === currentPage ? 'var(--color-accent)' : 'transparent',
+                        color: p === currentPage ? '#0a1a0e' : 'var(--color-text-primary)',
+                        border: p === currentPage ? '2px solid #15803d' : '2px solid var(--color-border)',
+                        fontWeight: 900,
+                        boxShadow: p === currentPage ? '2px 2px 0 #15803d' : 'none',
+                      }}
+                      onClick={() => setCurrentPage(p)}
+                    >{p}</button>
+                  ))}
+
+                  {endPage < totalPages && (
+                    <>
+                      {endPage < totalPages - 1 && <span style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>…</span>}
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '0.2rem 0.45rem', fontSize: '0.75rem', minWidth: 0 }}
+                        onClick={() => setCurrentPage(totalPages)}
+                      >{totalPages}</button>
+                    </>
+                  )}
+
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', minWidth: 0 }}
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >→</button>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 

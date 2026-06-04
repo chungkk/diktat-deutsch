@@ -82,8 +82,8 @@ export default function ClozeRow({
   const handleExplain = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
 
-    // If sentence not completed, show warning toast
-    if (!isCompleted && !allBlanksCorrect) {
+    // If sentence not completed (and not in showAll mode), show warning toast
+    if (!showAll && !isCompleted && !allBlanksCorrect) {
       setShowToast(true);
       if (toastTimer.current) clearTimeout(toastTimer.current);
       toastTimer.current = setTimeout(() => setShowToast(false), 2000);
@@ -124,7 +124,7 @@ export default function ClozeRow({
     } finally {
       setExplaining(false);
     }
-  }, [showExplain, explanation, sub.text, isCompleted, allBlanksCorrect]);
+  }, [showExplain, explanation, sub.text, isCompleted, allBlanksCorrect, showAll]);
 
   // Simple markdown-like rendering for the explanation
   const renderExplanation = (text: string) => {

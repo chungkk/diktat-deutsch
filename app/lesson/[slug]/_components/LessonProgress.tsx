@@ -8,9 +8,11 @@ interface LessonProgressProps {
   shadowingMode: boolean;
   bookmarkCount: number;
   autoStop: boolean;
+  showAll: boolean;
   onCycleBlur: () => void;
   onToggleShadowing: () => void;
   onToggleAutoStop: () => void;
+  onToggleShowAll: () => void;
 }
 
 export default function LessonProgress({
@@ -21,9 +23,11 @@ export default function LessonProgress({
   shadowingMode,
   bookmarkCount,
   autoStop,
+  showAll,
   onCycleBlur,
   onToggleShadowing,
   onToggleAutoStop,
+  onToggleShowAll,
 }: LessonProgressProps) {
   return (
     <>
@@ -88,6 +92,23 @@ export default function LessonProgress({
           </span>
           <span className="ctrl-btn-badge">
             {autoStop ? 'AN' : 'AUS'}
+          </span>
+        </button>
+
+        {/* Show All toggle */}
+        <button
+          className={`ctrl-btn ctrl-btn-autostop ${showAll ? 'ctrl-btn-autostop-active' : ''}`}
+          onClick={onToggleShowAll}
+          title={showAll ? 'Tất cả câu đang hiển thị' : 'Hiển thị tất cả câu'}
+        >
+          <span className="ctrl-btn-icon">
+            {showAll ? '👀' : '🙈'}
+          </span>
+          <span className="ctrl-btn-text">
+            Hiện tất cả
+          </span>
+          <span className="ctrl-btn-badge">
+            {showAll ? 'AN' : 'AUS'}
           </span>
         </button>
       </div>

@@ -30,6 +30,7 @@ interface ClozeRowProps {
   onKeyDown: (e: React.KeyboardEvent, subIdx: number, wordIdx: number) => void;
   onRevealWord: (subIdx: number, wordIdx: number) => void;
   onToggleBookmark: (index: number) => void;
+  showAll?: boolean;
 }
 
 function formatTime(seconds: number): string {
@@ -56,6 +57,7 @@ export default function ClozeRow({
   onKeyDown,
   onRevealWord,
   onToggleBookmark,
+  showAll,
 }: ClozeRowProps) {
   const { words, blanks } = tokens;
   const allBlanksCorrect =
@@ -149,6 +151,18 @@ export default function ClozeRow({
   };
 
   const renderWords = () => {
+    if (showAll) {
+      return (
+        <>
+          {words.map((word, wi) => (
+            <span key={wi} className="cloze-word cloze-revealed">
+              {word}{' '}
+            </span>
+          ))}
+        </>
+      );
+    }
+
     if (isCompleted) {
       return (
         <>

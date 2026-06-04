@@ -96,6 +96,7 @@ export default function LessonPage() {
   const [bookmarkedIndices, setBookmarkedIndices] = useState<Set<number>>(new Set());
   const [shadowingMode, setShadowingMode] = useState(false);
   const [autoStop, setAutoStop] = useState(true);
+  const [showAllSentences, setShowAllSentences] = useState(false);
 
   // ── Edit mode state ──
   const [editSubtitles, setEditSubtitles] = useState<Subtitle[]>([]);
@@ -924,6 +925,8 @@ export default function LessonPage() {
               onToggleShadowing={toggleShadowingMode}
               autoStop={autoStop}
               onToggleAutoStop={() => setAutoStop(prev => !prev)}
+              showAll={showAllSentences}
+              onToggleShowAll={() => setShowAllSentences(prev => !prev)}
             />
           </div>
         </div>
@@ -1072,6 +1075,7 @@ export default function LessonPage() {
                     onKeyDown={handleBlankKeyDown}
                     onRevealWord={revealWord}
                     onToggleBookmark={toggleBookmark}
+                    showAll={showAllSentences}
                   />
                 );
               })}

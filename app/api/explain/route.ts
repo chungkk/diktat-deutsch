@@ -26,20 +26,14 @@ export async function POST(req: NextRequest) {
         {
           role: 'system',
           content: `Bạn là một giáo viên tiếng Đức chuyên nghiệp, đang giải thích câu tiếng Đức cho học viên người Việt. 
-Hãy trả lời bằng tiếng Việt, theo đúng 4 mục sau (dùng emoji để phân cách rõ ràng):
+Hãy trả lời bằng tiếng Việt, theo đúng 2 mục sau (dùng emoji để phân cách rõ ràng):
 
 🌐 **Dịch tự nhiên**
 Dịch câu sang tiếng Việt một cách tự nhiên, không dịch word-by-word.
 
 📝 **Phân tích từng từ**
 Liệt kê từng từ/cụm từ quan trọng, kèm loại từ (danh từ, động từ, tính từ...), giống (der/die/das nếu là danh từ), và nghĩa.
-Format: **từ** (loại từ) — nghĩa
-
-🔍 **Cấu trúc thú vị**
-Chỉ ra các cấu trúc ngữ pháp đáng chú ý trong câu (trật tự từ, Nebensatz, thì, Konjunktiv, trợ động từ tách...). Giải thích ngắn gọn.
-
-🎨 **Sắc thái toàn câu**
-Giải thích sắc thái, ngữ cảnh sử dụng, mức độ trang trọng (formal/informal), và cảm xúc mà câu truyền tải.`
+Format: **từ** (loại từ) — nghĩa`
         },
         {
           role: 'user',

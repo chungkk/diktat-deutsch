@@ -604,9 +604,10 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
               const isSelected = selectedSubs.has(i);
               const isCurrentPlaying = playingIdx === i;
               const endTime = s.start + s.dur;
+              const isLastSelected = selectedSubs.size >= 2 && isSelected && sortedSelection[sortedSelection.length - 1] === i;
               return (
+                <div key={i}>
                 <div
-                  key={i}
                   className={`inline-sub-editor-row ${isCurrentPlaying ? 'inline-sub-row-playing' : ''} ${isSelected ? 'inline-sub-row-selected' : ''}`}
                 >
                   {/* Checkbox */}
@@ -731,6 +732,34 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
                     className="inline-sub-input inline-sub-input-text"
                     placeholder="Untertiteltext..."
                   />
+                </div>
+                {isLastSelected && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    gap: 8, padding: '0.4rem 0.6rem',
+                    background: 'rgba(245,158,11,0.12)',
+                    border: '2px solid rgba(245,158,11,0.4)',
+                    borderRadius: 8,
+                    margin: '2px 0',
+                  }}>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      style={{
+                        background: 'linear-gradient(135deg, #f59e0b, #ef4444)',
+                        border: '2px solid #b45309',
+                        boxShadow: '3px 3px 0 #b45309',
+                        fontWeight: 900, fontSize: '0.75rem',
+                        padding: '0.3rem 1rem',
+                      }}
+                      onClick={mergeSelectedSubs}
+                    >🔗 Gộp {selectedSubs.size} dòng</button>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '0.65rem', opacity: 0.7 }}
+                      onClick={() => setSelectedSubs(new Set())}
+                    >✕ Bỏ chọn</button>
+                  </div>
+                )}
                 </div>
               );
             })}

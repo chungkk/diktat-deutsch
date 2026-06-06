@@ -38,6 +38,9 @@ export default function Navbar() {
               <Link href="/">
                 <span className="nav-icon">📖</span> Lektionen
               </Link>
+              <Link href="/schreiben">
+                <span className="nav-icon">✍️</span> Schreiben
+              </Link>
 
               <div className="navbar-dropdown">
                 <span className="navbar-user">

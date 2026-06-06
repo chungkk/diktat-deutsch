@@ -28,11 +28,17 @@ function formatTime(seconds: number): string {
 export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initialSubs, onClose, onSaved }: InlineSubEditorProps) {
   const [subtitles, setSubtitles] = useState<Subtitle[]>(JSON.parse(JSON.stringify(initialSubs)));
   const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [selectedSubs, setSelectedSubs] = useState<Set<number>>(new Set());
   const [playingIdx, setPlayingIdx] = useState<number | null>(null);
   // Track subtitles that have been merged or had their timing adjusted
   const [editedSubs, setEditedSubs] = useState<Set<number>>(new Set());
+
+  // Auto-save
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDirtyRef = useRef(false);
+  const isFirstRender = useRef(true);
+  const latestSubtitlesRef = useRef<Subtitle[]>(subtitles);
 
   // YouTube Player
   const playerRef = useRef<any>(null);
@@ -164,7 +170,7 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
   // InlineSubEditor is only used on the lesson page → always saves to personal custom subtitles
   const performSave = useCallback(async (subsToSave: Subtitle[]) => {
     setSaving(true);
-    setSaveMsg('');
+    setSaveStatus('saving');
     try {
       const res = await fetch('/api/user-subtitles', {
         method: 'PUT',
@@ -172,22 +178,59 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
         body: JSON.stringify({ lessonId, subtitles: subsToSave }),
       });
       if (res.ok) {
-        setSaveMsg('✅ Gespeichert!');
+        setSaveStatus('saved');
+        isDirtyRef.current = false;
         onSaved(subsToSave);
-        setTimeout(() => setSaveMsg(''), 3000);
+        setTimeout(() => setSaveStatus('idle'), 3000);
       } else {
-        setSaveMsg('❌ Fehler beim Speichern');
+        setSaveStatus('error');
       }
     } catch {
-      setSaveMsg('❌ Fehler beim Speichern');
+      setSaveStatus('error');
     }
     setSaving(false);
   }, [lessonId, onSaved]);
 
-  // Manual save (button)
-  const handleSave = async () => {
-    await performSave(subtitles);
-  };
+  // Keep latestSubtitlesRef in sync
+  useEffect(() => {
+    latestSubtitlesRef.current = subtitles;
+  }, [subtitles]);
+
+  // Debounced auto-save: triggers 1.5s after last change
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    isDirtyRef.current = true;
+    setSaveStatus('idle');
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      if (isDirtyRef.current) {
+        performSave(latestSubtitlesRef.current);
+      }
+    }, 1500);
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subtitles]);
+
+  // Cleanup auto-save timer on unmount + save if dirty
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      if (isDirtyRef.current) {
+        // Fire-and-forget save on unmount
+        fetch('/api/user-subtitles', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lessonId, subtitles: latestSubtitlesRef.current }),
+        }).catch(() => {});
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lessonId]);
 
   // Subtitle operations
   const updateSub = (index: number, field: keyof Subtitle, value: string | number) => {
@@ -411,23 +454,22 @@ export default function InlineSubEditor({ lessonId, youtubeId, subtitles: initia
           >↪️</button>
         </div>
 
-        {/* Save */}
-        <button
-          className="btn btn-primary btn-sm"
-          onClick={handleSave}
-          disabled={saving}
-          style={{ whiteSpace: 'nowrap', fontSize: '0.75rem' }}
-        >
-          {saving ? '⏳...' : '💾 Speichern'}
-        </button>
-        {saveMsg && (
-          <span style={{
-            fontSize: '0.72rem', fontWeight: 800,
-            color: saveMsg.startsWith('✅') ? 'var(--color-success)' : 'var(--color-error)',
-          }}>
-            {saveMsg}
-          </span>
-        )}
+        {/* Auto-save status */}
+        <span style={{
+          fontSize: '0.7rem', fontWeight: 800,
+          display: 'flex', alignItems: 'center', gap: 4,
+          color: saveStatus === 'saved' ? 'var(--color-success)'
+               : saveStatus === 'error' ? 'var(--color-error)'
+               : saveStatus === 'saving' ? 'var(--color-text-muted)'
+               : 'transparent',
+          transition: 'color 0.3s, opacity 0.3s',
+          opacity: saveStatus === 'idle' ? 0 : 1,
+          whiteSpace: 'nowrap',
+        }}>
+          {saveStatus === 'saving' && '⏳ Speichert...'}
+          {saveStatus === 'saved' && '✅ Gespeichert'}
+          {saveStatus === 'error' && '❌ Fehler'}
+        </span>
 
         {/* Close */}
         <button

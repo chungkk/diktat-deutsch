@@ -54,8 +54,14 @@ function pickBlanks(words: string[], seed: number): Set<number> {
     .filter(({ w }) => isRealWord(w))
     .map(({ i }) => i);
 
-  // Sentences with 0 or 1 real word → show as-is, no blanks
-  if (realWordIndices.length <= 1) return blanks;
+  // Sentences with 0 real words → show as-is, no blanks
+  if (realWordIndices.length === 0) return blanks;
+
+  // Single-word sentence → always blank that word
+  if (realWordIndices.length === 1) {
+    blanks.add(realWordIndices[0]);
+    return blanks;
+  }
 
   // 60% mode: blank roughly 60% of real words using seed-based selection
   for (const i of realWordIndices) {

@@ -97,7 +97,7 @@ export default function LessonProgress({
 
         {/* Show All toggle */}
         <button
-          className={`ctrl-btn ctrl-btn-autostop ${showAll ? 'ctrl-btn-autostop-active' : ''}`}
+          className={`ctrl-btn ctrl-btn-showall ${showAll ? 'ctrl-btn-showall-active' : ''}`}
           onClick={onToggleShowAll}
           title={showAll ? 'Tất cả câu đang hiển thị' : 'Hiển thị tất cả câu'}
         >

@@ -429,14 +429,13 @@ a:hover { color: var(--color-accent-hover); }
 /* UNIFIED CTRL BUTTONS (Shadowing + Video Blur) */
 .lesson-ctrl-group {
   margin-bottom: 0.75rem;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 0.4rem;
-  flex-wrap: wrap;
 }
 .ctrl-btn {
   display: inline-flex; align-items: center; justify-content: center;
   gap: 0.3rem;
-  flex: 1 1 0;
   padding: 0.55rem 0.6rem;
   background: var(--color-bg-card);
   border: 1.5px solid var(--color-border);
@@ -468,6 +467,10 @@ a:hover { color: var(--color-accent-hover); }
 .ctrl-btn-autostop:hover { border-color: rgba(20,184,166,0.5); color: #14b8a6; }
 .ctrl-btn-autostop-active { border-color: #14b8a6; color: #14b8a6; background: rgba(20,184,166,0.08); }
 .ctrl-btn-autostop-active .ctrl-btn-badge { background: rgba(20,184,166,0.18); color: #14b8a6; border-color: rgba(20,184,166,0.4); }
+/* Show-all variant — violet */
+.ctrl-btn-showall:hover { border-color: rgba(167,139,250,0.5); color: #a78bfa; }
+.ctrl-btn-showall-active { border-color: #a78bfa; color: #a78bfa; background: rgba(167,139,250,0.08); }
+.ctrl-btn-showall-active .ctrl-btn-badge { background: rgba(167,139,250,0.18); color: #a78bfa; border-color: rgba(167,139,250,0.4); }
 
 /* LESSON PAGE */
 .lesson-page { display: flex; flex-direction: column; height: 100vh; }

@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
 import Lesson from '@/models/Lesson';
 
+export const dynamic = 'force-dynamic';
+
 // GET all published lessons (for users) or all lessons (for admin)
 export async function GET() {
   try {

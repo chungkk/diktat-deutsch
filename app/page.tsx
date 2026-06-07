@@ -120,18 +120,25 @@ export default function HomePage() {
 
     const thisId = ++fetchIdRef.current;
 
-    const fetchLessons = async () => {
-      try {
-        const r = await fetch('/api/lessons', { cache: 'no-store' });
-        if (!r.ok) return null;
-        const data = await r.json();
-        return Array.isArray(data) ? (data as Lesson[]) : null;
-      } catch {
-        return null;
+    const fetchLessons = async (retries = 2): Promise<Lesson[]> => {
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+          const r = await fetch('/api/lessons', { cache: 'no-store' });
+          if (r.ok) {
+            const data = await r.json();
+            if (Array.isArray(data)) return data as Lesson[];
+          }
+        } catch {
+          // ignore and retry
+        }
+        if (attempt < retries) {
+          await new Promise(res => setTimeout(res, 400 * (attempt + 1)));
+        }
       }
+      return [];
     };
 
-    const fetchProgress = async (retries = 2): Promise<Progress[] | null> => {
+    const fetchProgress = async (retries = 2): Promise<Progress[]> => {
       for (let attempt = 0; attempt <= retries; attempt++) {
         try {
           const r = await fetch('/api/progress', { cache: 'no-store' });
@@ -146,21 +153,17 @@ export default function HomePage() {
           await new Promise(res => setTimeout(res, 400 * (attempt + 1)));
         }
       }
-      return null;
+      return [];
     };
 
     Promise.all([fetchLessons(), fetchProgress()]).then(([lessonsData, progressData]) => {
       // Discard stale responses from earlier concurrent calls
       if (thisId !== fetchIdRef.current) return;
 
-      if (lessonsData) {
-        setLessons(lessonsData);
-        setLessonsReady(true);
-      }
-      if (progressData) {
-        setProgress(progressData);
-        setProgressReady(true);
-      }
+      setLessons(lessonsData);
+      setLessonsReady(true);
+      setProgress(progressData);
+      setProgressReady(true);
     });
   }, [status]);
 

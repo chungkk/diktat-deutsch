@@ -41,6 +41,9 @@ export default function Navbar() {
               <Link href="/schreiben">
                 <span className="nav-icon">✍️</span> Schreiben
               </Link>
+              <Link href="/saved">
+                <span className="nav-icon">★</span> Gespeichert
+              </Link>
 
               <div className="navbar-dropdown">
                 <span className="navbar-user">

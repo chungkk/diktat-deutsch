@@ -64,14 +64,19 @@ export default function SavedPage() {
   const fetchSaved = useCallback(async () => {
     try {
       const res = await fetch('/api/saved-sentences', { cache: 'no-store' });
+      console.log('[Saved] API status:', res.status);
       if (res.ok) {
         const data = await res.json();
+        console.log('[Saved] API data:', data);
         if (Array.isArray(data)) {
           setSentences(data);
         }
+      } else {
+        const errText = await res.text();
+        console.error('[Saved] API error:', res.status, errText);
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error('[Saved] Fetch error:', err);
     } finally {
       setLoading(false);
     }

@@ -24,6 +24,7 @@ interface LessonGroup {
   lessonLevel: string;
   youtubeId?: string;
   sentences: SavedSentence[];
+  completedCount: number;
 }
 
 const LEVEL_COLORS: Record<string, string> = {
@@ -53,20 +54,12 @@ const LEVEL_EMOJI: Record<string, string> = {
   C2: '🔥',
 };
 
-function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
-
 export default function SavedPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [sentences, setSentences] = useState<SavedSentence[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterLevel, setFilterLevel] = useState<string>('all');
-  const [expandedLessons, setExpandedLessons] = useState<Set<string>>(new Set());
-  const [removingKeys, setRemovingKeys] = useState<Set<string>>(new Set());
 
   const fetchSaved = useCallback(async () => {
     try {
@@ -75,9 +68,6 @@ export default function SavedPage() {
         const data = await res.json();
         if (Array.isArray(data)) {
           setSentences(data);
-          // Expand all lessons by default
-          const lessonIds = new Set<string>(data.map((s: SavedSentence) => s.lessonId));
-          setExpandedLessons(lessonIds);
         }
       }
     } catch {
@@ -96,49 +86,6 @@ export default function SavedPage() {
       fetchSaved();
     }
   }, [status, router, fetchSaved]);
-
-  const handleRemoveBookmark = useCallback(async (lessonId: string, sentenceIndex: number) => {
-    const key = `${lessonId}-${sentenceIndex}`;
-    setRemovingKeys(prev => new Set(prev).add(key));
-
-    // Get all bookmarks for this lesson, remove this one
-    const lessonSentences = sentences.filter(s => s.lessonId === lessonId);
-    const remainingIndices = lessonSentences
-      .filter(s => s.sentenceIndex !== sentenceIndex)
-      .map(s => s.sentenceIndex);
-
-    try {
-      const res = await fetch('/api/progress/bookmarks', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lessonId,
-          bookmarkedIndices: remainingIndices,
-        }),
-      });
-
-      if (res.ok) {
-        setSentences(prev => prev.filter(s => !(s.lessonId === lessonId && s.sentenceIndex === sentenceIndex)));
-      }
-    } catch {
-      // ignore
-    } finally {
-      setRemovingKeys(prev => {
-        const next = new Set(prev);
-        next.delete(key);
-        return next;
-      });
-    }
-  }, [sentences]);
-
-  const toggleLesson = (lessonId: string) => {
-    setExpandedLessons(prev => {
-      const next = new Set(prev);
-      if (next.has(lessonId)) next.delete(lessonId);
-      else next.add(lessonId);
-      return next;
-    });
-  };
 
   if (status === 'loading' || loading) {
     return (
@@ -170,16 +117,13 @@ export default function SavedPage() {
         lessonLevel: s.lessonLevel,
         youtubeId: s.youtubeId,
         sentences: [],
+        completedCount: 0,
       };
       groupMap.set(s.lessonId, group);
       grouped.push(group);
     }
     group.sentences.push(s);
-  }
-
-  // Sort sentences within each group by sentenceIndex
-  for (const group of grouped) {
-    group.sentences.sort((a, b) => a.sentenceIndex - b.sentenceIndex);
+    if (s.isCompleted) group.completedCount++;
   }
 
   // Filter by level
@@ -253,35 +197,46 @@ export default function SavedPage() {
           </div>
         )}
 
-        {/* Lesson groups */}
-        <div className="saved-groups">
+        {/* Lesson cards grid */}
+        <div className="saved-cards-grid">
           {filteredGroups.map(group => {
             const levelColor = LEVEL_COLORS[group.lessonLevel] || '#22c55e';
             const levelShadow = LEVEL_SHADOWS[group.lessonLevel] || '#15803d';
             const levelEmoji = LEVEL_EMOJI[group.lessonLevel] || '📝';
-            const isExpanded = expandedLessons.has(group.lessonId);
-            const completedCount = group.sentences.filter(s => s.isCompleted).length;
+            const thumb = group.youtubeId
+              ? `https://img.youtube.com/vi/${group.youtubeId}/mqdefault.jpg`
+              : null;
+            const completedPct = group.sentences.length > 0
+              ? Math.round((group.completedCount / group.sentences.length) * 100)
+              : 0;
 
             return (
-              <div
+              <Link
                 key={group.lessonId}
-                className="saved-lesson-group"
-                style={{
-                  '--card-glow-color': levelColor,
-                  '--card-shadow-color': levelShadow,
-                } as React.CSSProperties}
+                href={`/saved/${group.lessonId}`}
+                className="saved-card-link"
               >
-                {/* Lesson header */}
-                <div
-                  className="saved-lesson-header"
-                  onClick={() => toggleLesson(group.lessonId)}
+                <article
+                  className="saved-card"
+                  style={{
+                    '--card-glow-color': levelColor,
+                    '--card-shadow-color': levelShadow,
+                  } as React.CSSProperties}
                 >
-                  <div className="saved-lesson-header-left">
-                    <span className="saved-lesson-expand">
-                      {isExpanded ? '▼' : '▶'}
-                    </span>
+                  {/* Thumbnail */}
+                  <div className="saved-card-thumb">
+                    {thumb ? (
+                      <img src={thumb} alt={group.lessonTitle} loading="lazy" />
+                    ) : (
+                      <div className="saved-card-thumb-placeholder">
+                        <span>★</span>
+                      </div>
+                    )}
+                    <div className="saved-card-thumb-overlay" />
+
+                    {/* Level badge */}
                     <span
-                      className="saved-lesson-level"
+                      className="saved-card-level"
                       style={{
                         background: levelColor,
                         borderColor: levelShadow,
@@ -290,75 +245,51 @@ export default function SavedPage() {
                     >
                       {levelEmoji} {group.lessonLevel}
                     </span>
-                    <h3 className="saved-lesson-title">{group.lessonTitle}</h3>
-                  </div>
-                  <div className="saved-lesson-header-right">
-                    <span className="saved-lesson-count">
+
+                    {/* Saved count badge */}
+                    <span className="saved-card-count-badge">
                       ★ {group.sentences.length}
                     </span>
-                    {completedCount > 0 && (
-                      <span className="saved-lesson-completed">
-                        ✓ {completedCount}/{group.sentences.length}
+                  </div>
+
+                  {/* Body */}
+                  <div className="saved-card-body">
+                    <h3 className="saved-card-title">{group.lessonTitle}</h3>
+
+                    <div className="saved-card-meta">
+                      <span className="saved-card-meta-item">
+                        🔖 {group.sentences.length} Sätze
                       </span>
-                    )}
-                    <Link
-                      href={`/lesson/${group.lessonSlug}`}
-                      className="saved-lesson-go-btn"
-                      onClick={(e) => e.stopPropagation()}
-                      title="Zur Lektion"
-                    >
-                      →
-                    </Link>
-                  </div>
-                </div>
+                      {group.completedCount > 0 && (
+                        <span className="saved-card-meta-item saved-card-meta-completed">
+                          ✓ {group.completedCount} erledigt
+                        </span>
+                      )}
+                    </div>
 
-                {/* Sentences */}
-                {isExpanded && (
-                  <div className="saved-sentences">
-                    {group.sentences.map((s) => {
-                      const key = `${s.lessonId}-${s.sentenceIndex}`;
-                      const isRemoving = removingKeys.has(key);
-
-                      return (
-                        <div
-                          key={key}
-                          className={`saved-sentence ${s.isCompleted ? 'saved-sentence-completed' : ''} ${isRemoving ? 'saved-sentence-removing' : ''}`}
-                        >
-                          <div className="saved-sentence-header">
-                            <span className="saved-sentence-number">
-                              #{s.sentenceIndex + 1}
-                            </span>
-                            <span className="saved-sentence-time">
-                              ⏱️ {formatTime(s.start)}
-                            </span>
-                            {s.isCompleted && (
-                              <span className="saved-sentence-check">✓</span>
-                            )}
-                            <div className="saved-sentence-actions">
-                              <Link
-                                href={`/lesson/${s.lessonSlug}`}
-                                className="saved-sentence-action-btn"
-                                title="Zur Lektion gehen"
-                              >
-                                ▶
-                              </Link>
-                              <button
-                                className="saved-sentence-action-btn saved-sentence-remove-btn"
-                                onClick={() => handleRemoveBookmark(s.lessonId, s.sentenceIndex)}
-                                disabled={isRemoving}
-                                title="Lesezeichen entfernen"
-                              >
-                                {isRemoving ? '⏳' : '✕'}
-                              </button>
-                            </div>
-                          </div>
-                          <p className="saved-sentence-text">{s.text}</p>
+                    {/* Progress bar */}
+                    <div className="saved-card-footer">
+                      <div className="saved-card-progress-info">
+                        <div className="saved-card-progress-bar">
+                          <div
+                            className="saved-card-progress-fill"
+                            style={{
+                              width: `${completedPct}%`,
+                              background: completedPct >= 90
+                                ? `linear-gradient(90deg, ${levelColor} 0%, #a3e635 100%)`
+                                : `linear-gradient(90deg, ${levelColor} 0%, ${levelShadow} 100%)`,
+                              boxShadow: `0 0 6px ${levelColor}66`,
+                            }}
+                          />
                         </div>
-                      );
-                    })}
+                        <span className="saved-card-progress-text">
+                          {group.completedCount}/{group.sentences.length} ✍️
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                )}
-              </div>
+                </article>
+              </Link>
             );
           })}
         </div>

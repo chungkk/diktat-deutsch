@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
 import Progress from '@/models/Progress';
+import '@/models/Lesson';
 
 // GET all saved/bookmarked sentences across all lessons for the current user
 export async function GET() {

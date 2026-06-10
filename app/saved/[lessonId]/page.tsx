@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -59,6 +59,15 @@ export default function SavedLessonPage() {
   const [sentences, setSentences] = useState<SavedSentence[]>([]);
   const [loading, setLoading] = useState(true);
   const [removingKeys, setRemovingKeys] = useState<Set<string>>(new Set());
+  const [playingIndex, setPlayingIndex] = useState<number | null>(null);
+
+  // YouTube player refs
+  const ytIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const ytReadyRef = useRef(false);
+  const ytTimeRef = useRef<number>(0);
+  const ytStateRef = useRef<number>(-1);
+  const autoPauseTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoPauseFallback = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchSaved = useCallback(async () => {
     try {
@@ -87,6 +96,99 @@ export default function SavedLessonPage() {
       fetchSaved();
     }
   }, [status, router, fetchSaved]);
+
+  // YouTube postMessage setup
+  const initYtListening = useCallback(() => {
+    if (!ytIframeRef.current?.contentWindow) return;
+    ytIframeRef.current.contentWindow.postMessage(
+      JSON.stringify({ event: 'listening', id: 'diktat-saved' }),
+      'https://www.youtube.com'
+    );
+    ytReadyRef.current = true;
+  }, []);
+
+  const handleYtIframeLoad = useCallback(() => {
+    setTimeout(() => initYtListening(), 500);
+    setTimeout(() => initYtListening(), 1500);
+  }, [initYtListening]);
+
+  // Listen for YouTube messages
+  useEffect(() => {
+    const youtubeId = sentences[0]?.youtubeId;
+    if (!youtubeId) return;
+
+    const handleMessage = (e: MessageEvent) => {
+      if (e.origin !== 'https://www.youtube.com') return;
+      try {
+        const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        if (!ytReadyRef.current) initYtListening();
+        if (data.event === 'onStateChange' || data.info?.playerState !== undefined) {
+          const state = data.info?.playerState ?? data.info;
+          ytStateRef.current = state;
+        }
+        if (data.event === 'initialDelivery' || data.event === 'infoDelivery') {
+          if (data.info?.currentTime !== undefined) ytTimeRef.current = data.info.currentTime;
+          if (data.info?.playerState !== undefined) {
+            ytStateRef.current = data.info.playerState;
+          }
+        }
+      } catch { /* ignore non-JSON */ }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [sentences, initYtListening]);
+
+  // Poll YouTube time
+  const ytCommand = useCallback((func: string, args?: unknown[]) => {
+    if (!ytIframeRef.current?.contentWindow) return;
+    ytIframeRef.current.contentWindow.postMessage(
+      JSON.stringify({ event: 'command', func, args: args || [] }),
+      'https://www.youtube.com'
+    );
+  }, []);
+
+  useEffect(() => {
+    const youtubeId = sentences[0]?.youtubeId;
+    if (!youtubeId) return;
+    const interval = setInterval(() => {
+      ytCommand('getCurrentTime');
+      ytCommand('getPlayerState');
+    }, 150);
+    return () => clearInterval(interval);
+  }, [sentences, ytCommand]);
+
+  // Play a specific sentence
+  const playSentence = useCallback((sentence: SavedSentence) => {
+    if (!sentence.youtubeId) return;
+
+    // Clear previous timers
+    if (autoPauseTimer.current) { clearInterval(autoPauseTimer.current); autoPauseTimer.current = null; }
+    if (autoPauseFallback.current) { clearTimeout(autoPauseFallback.current); autoPauseFallback.current = null; }
+
+    setPlayingIndex(sentence.sentenceIndex);
+
+    ytCommand('seekTo', [sentence.start, true]);
+    ytCommand('playVideo');
+
+    const endTime = sentence.start + sentence.dur + 0.3;
+    const durationMs = (sentence.dur + 0.5) * 1000;
+
+    autoPauseTimer.current = setInterval(() => {
+      if (ytTimeRef.current >= endTime) {
+        ytCommand('pauseVideo');
+        setPlayingIndex(null);
+        if (autoPauseTimer.current) { clearInterval(autoPauseTimer.current); autoPauseTimer.current = null; }
+        if (autoPauseFallback.current) { clearTimeout(autoPauseFallback.current); autoPauseFallback.current = null; }
+      }
+    }, 80);
+
+    autoPauseFallback.current = setTimeout(() => {
+      ytCommand('pauseVideo');
+      setPlayingIndex(null);
+      if (autoPauseTimer.current) { clearInterval(autoPauseTimer.current); autoPauseTimer.current = null; }
+      autoPauseFallback.current = null;
+    }, durationMs);
+  }, [ytCommand]);
 
   const handleRemoveBookmark = useCallback(async (sentenceIndex: number) => {
     const key = `${lessonId}-${sentenceIndex}`;
@@ -136,7 +238,7 @@ export default function SavedLessonPage() {
     );
   }
 
-  // If no sentences found for this lesson, redirect back
+  // If no sentences found for this lesson
   if (sentences.length === 0 && !loading) {
     return (
       <div className="home-page">
@@ -159,10 +261,26 @@ export default function SavedLessonPage() {
   const levelEmoji = LEVEL_EMOJI[first.lessonLevel] || '📝';
   const completedCount = sentences.filter(s => s.isCompleted).length;
   const completedPct = sentences.length > 0 ? Math.round((completedCount / sentences.length) * 100) : 0;
+  const youtubeId = first.youtubeId;
 
   return (
     <div className="home-page">
       <div className="container">
+        {/* Hidden YouTube player */}
+        {youtubeId && (
+          <div className="saved-hidden-player">
+            <iframe
+              ref={ytIframeRef}
+              src={`https://www.youtube.com/embed/${youtubeId}?enablejsapi=1&origin=${
+                typeof window !== 'undefined' ? window.location.origin : ''
+              }&controls=0&modestbranding=1&rel=0`}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              title="Hidden Player"
+              onLoad={handleYtIframeLoad}
+            />
+          </div>
+        )}
+
         {/* Back navigation */}
         <Link href="/saved" className="saved-detail-back">
           ← Alle gespeicherten Lektionen
@@ -228,11 +346,14 @@ export default function SavedLessonPage() {
           {sentences.map((s) => {
             const key = `${s.lessonId}-${s.sentenceIndex}`;
             const isRemoving = removingKeys.has(key);
+            const isCurrentlyPlaying = playingIndex === s.sentenceIndex;
 
             return (
               <div
                 key={key}
-                className={`saved-sentence ${s.isCompleted ? 'saved-sentence-completed' : ''} ${isRemoving ? 'saved-sentence-removing' : ''}`}
+                className={`saved-sentence ${s.isCompleted ? 'saved-sentence-completed' : ''} ${isRemoving ? 'saved-sentence-removing' : ''} ${isCurrentlyPlaying ? 'saved-sentence-playing' : ''}`}
+                onClick={() => playSentence(s)}
+                style={{ cursor: youtubeId ? 'pointer' : 'default' }}
               >
                 <div className="saved-sentence-header">
                   <span className="saved-sentence-number">
@@ -241,20 +362,23 @@ export default function SavedLessonPage() {
                   <span className="saved-sentence-time">
                     ⏱️ {formatTime(s.start)}
                   </span>
+                  {isCurrentlyPlaying && (
+                    <span className="saved-sentence-playing-badge">🔊</span>
+                  )}
                   {s.isCompleted && (
                     <span className="saved-sentence-check">✓</span>
                   )}
                   <div className="saved-sentence-actions">
-                    <Link
-                      href={`/lesson/${s.lessonSlug}`}
-                      className="saved-sentence-action-btn"
-                      title="Zur Lektion gehen"
+                    <button
+                      className="saved-sentence-action-btn saved-sentence-play-btn"
+                      onClick={(e) => { e.stopPropagation(); playSentence(s); }}
+                      title="Abspielen"
                     >
-                      ▶
-                    </Link>
+                      {isCurrentlyPlaying ? '⏸' : '▶'}
+                    </button>
                     <button
                       className="saved-sentence-action-btn saved-sentence-remove-btn"
-                      onClick={() => handleRemoveBookmark(s.sentenceIndex)}
+                      onClick={(e) => { e.stopPropagation(); handleRemoveBookmark(s.sentenceIndex); }}
                       disabled={isRemoving}
                       title="Lesezeichen entfernen"
                     >

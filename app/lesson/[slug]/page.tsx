@@ -102,7 +102,7 @@ export default function LessonPage() {
   const [bookmarkedIndices, setBookmarkedIndices] = useState<Set<number>>(new Set());
   const [shadowingMode, setShadowingMode] = useState(false);
   const [autoStop, setAutoStop] = useState(true);
-  const [showAllSentences, setShowAllSentences] = useState(false);
+  const [showAllSentences, setShowAllSentences] = useState(true);
 
   // ── Edit mode state ──
   const [editSubtitles, setEditSubtitles] = useState<Subtitle[]>([]);
